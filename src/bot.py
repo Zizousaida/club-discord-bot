@@ -12,6 +12,7 @@ from services.role_service import RoleService
 from commands.contribution import setup_contribution_commands
 from commands.moderation import setup_moderation_commands
 from commands.roles import setup_role_commands
+from commands.help import setup_help_command
 
 
 log = logging.getLogger(__name__)
@@ -55,6 +56,7 @@ class ClubBot(commands.Bot):
         setup_contribution_commands(self)
         setup_moderation_commands(self)
         setup_role_commands(self)
+        setup_help_command(self)
 
         guild_id = config.get_guild_id()
         if guild_id:
