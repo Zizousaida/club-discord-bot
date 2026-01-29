@@ -4,7 +4,7 @@ from typing import Iterable, List, Optional
 
 import sqlite3
 
-from .models import Contribution, Warning, ModerationLog
+from .models import Contribution, Warning, ModerationLog, ClubRole, MemberRole
 
 
 # ---------------------------------------------------------------------------
@@ -282,5 +282,212 @@ def get_moderation_log_by_id(
     if row is None:
         return None
     return _row_to_moderation_log(row)
+
+
+# ---------------------------------------------------------------------------
+# Club role queries
+# ---------------------------------------------------------------------------
+
+
+def _row_to_club_role(row: sqlite3.Row) -> ClubRole:
+    return ClubRole(
+        id=row["id"],
+        name=row["name"],
+        description=row["description"],
+    )
+
+
+def create_club_role(
+    conn: sqlite3.Connection,
+    *,
+    name: str,
+    description: Optional[str],
+) -> ClubRole:
+    """Create a new club role."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO club_roles (name, description)
+        VALUES (?, ?)
+        """,
+        (name, description),
+    )
+    conn.commit()
+    role_id = cursor.lastrowid
+    return get_club_role_by_id(conn, role_id)
+
+
+def get_club_role_by_id(
+    conn: sqlite3.Connection, role_id: int
+) -> Optional[ClubRole]:
+    """Get a club role by its ID."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM club_roles WHERE id = ?",
+        (role_id,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return _row_to_club_role(row)
+
+
+def get_club_role_by_name(
+    conn: sqlite3.Connection, name: str
+) -> Optional[ClubRole]:
+    """Get a club role by its name."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM club_roles WHERE name = ?",
+        (name,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return _row_to_club_role(row)
+
+
+def list_all_club_roles(conn: sqlite3.Connection) -> List[ClubRole]:
+    """List all club roles."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM club_roles ORDER BY name ASC"
+    )
+    rows = cursor.fetchall()
+    return [_row_to_club_role(row) for row in rows]
+
+
+def delete_club_role(
+    conn: sqlite3.Connection, role_id: int
+) -> bool:
+    """
+    Delete a club role by ID.
+
+    Returns True if a role was deleted, False if it didn't exist.
+    Note: This will cascade delete all member_roles entries due to foreign key.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM club_roles WHERE id = ?",
+        (role_id,),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Member role assignment queries
+# ---------------------------------------------------------------------------
+
+
+def _row_to_member_role(row: sqlite3.Row) -> MemberRole:
+    return MemberRole(
+        user_id=row["user_id"],
+        role_id=row["role_id"],
+        assigned_at=row["assigned_at"],
+        assigned_by=row["assigned_by"],
+    )
+
+
+def assign_role_to_member(
+    conn: sqlite3.Connection,
+    *,
+    user_id: int,
+    role_id: int,
+    assigned_by: int,
+    assigned_at: str,
+) -> MemberRole:
+    """Assign a club role to a member."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO member_roles (user_id, role_id, assigned_at, assigned_by)
+        VALUES (?, ?, ?, ?)
+        """,
+        (user_id, role_id, assigned_at, assigned_by),
+    )
+    conn.commit()
+    return get_member_role(conn, user_id=user_id, role_id=role_id)
+
+
+def get_member_role(
+    conn: sqlite3.Connection,
+    *,
+    user_id: int,
+    role_id: int,
+) -> Optional[MemberRole]:
+    """Get a specific member-role assignment."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT * FROM member_roles
+        WHERE user_id = ? AND role_id = ?
+        """,
+        (user_id, role_id),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return _row_to_member_role(row)
+
+
+def remove_role_from_member(
+    conn: sqlite3.Connection,
+    *,
+    user_id: int,
+    role_id: int,
+) -> bool:
+    """
+    Remove a club role from a member.
+
+    Returns True if an assignment was removed, False if it didn't exist.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        DELETE FROM member_roles
+        WHERE user_id = ? AND role_id = ?
+        """,
+        (user_id, role_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def get_roles_for_member(
+    conn: sqlite3.Connection,
+    user_id: int,
+) -> List[ClubRole]:
+    """Get all club roles assigned to a specific member."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT cr.* FROM club_roles cr
+        INNER JOIN member_roles mr ON cr.id = mr.role_id
+        WHERE mr.user_id = ?
+        ORDER BY cr.name ASC
+        """,
+        (user_id,),
+    )
+    rows = cursor.fetchall()
+    return [_row_to_club_role(row) for row in rows]
+
+
+def get_members_with_role(
+    conn: sqlite3.Connection,
+    role_id: int,
+) -> List[int]:
+    """Get all user IDs that have a specific club role."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT user_id FROM member_roles
+        WHERE role_id = ?
+        ORDER BY assigned_at ASC
+        """,
+        (role_id,),
+    )
+    rows = cursor.fetchall()
+    return [row["user_id"] for row in rows]
 
 

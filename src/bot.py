@@ -8,8 +8,10 @@ from discord.ext import commands
 import config
 from database.db import init_db
 from services.contribution_service import ContributionService
+from services.role_service import RoleService
 from commands.contribution import setup_contribution_commands
 from commands.moderation import setup_moderation_commands
+from commands.roles import setup_role_commands
 
 
 log = logging.getLogger(__name__)
@@ -38,6 +40,7 @@ class ClubBot(commands.Bot):
 
         # Shared service instances
         self.contribution_service = ContributionService()
+        self.role_service = RoleService()
 
     async def setup_hook(self) -> None:
         """
@@ -51,6 +54,7 @@ class ClubBot(commands.Bot):
         # Register slash commands
         setup_contribution_commands(self)
         setup_moderation_commands(self)
+        setup_role_commands(self)
 
         guild_id = config.get_guild_id()
         if guild_id:

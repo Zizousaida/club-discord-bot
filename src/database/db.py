@@ -86,6 +86,31 @@ def init_db() -> None:
             """
         )
 
+        # Club organizational roles (independent of Discord roles)
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS club_roles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT
+            );
+            """
+        )
+
+        # Many-to-many relationship: members assigned to club roles
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS member_roles (
+                user_id INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                assigned_at TEXT NOT NULL,
+                assigned_by INTEGER NOT NULL,
+                PRIMARY KEY (user_id, role_id),
+                FOREIGN KEY (role_id) REFERENCES club_roles(id) ON DELETE CASCADE
+            );
+            """
+        )
+
         conn.commit()
     finally:
         conn.close()

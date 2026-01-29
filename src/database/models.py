@@ -46,3 +46,22 @@ class ModerationLog:
     timestamp: str
 
 
+@dataclass
+class ClubRole:
+    """Represents an organizational role within the club."""
+
+    id: Optional[int]
+    name: str
+    description: Optional[str]
+
+
+@dataclass
+class MemberRole:
+    """Represents a member's assignment to a club role."""
+
+    user_id: int
+    role_id: int
+    assigned_at: str
+    assigned_by: int
+
+
