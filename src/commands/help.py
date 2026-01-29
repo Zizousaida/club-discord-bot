@@ -36,7 +36,7 @@ def setup_help_command(bot: commands.Bot) -> None:
         name="help",
         description="View all available bot commands organized by category.",
     )
-    async def help_command(interaction: discord.Interaction) -> None:
+    async def help_cmd(interaction: discord.Interaction) -> None:
         """
         Display a comprehensive help menu showing all bot commands,
         organized by category and filtered by user permissions.
@@ -148,5 +148,12 @@ def setup_help_command(bot: commands.Bot) -> None:
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    tree.add_command(help_command)
+    try:
+        tree.add_command(help_cmd)
+    except Exception as e:
+        # Log error if command registration fails
+        import logging
+        log = logging.getLogger(__name__)
+        log.error(f"Failed to register /help command: {e}")
+        raise
 

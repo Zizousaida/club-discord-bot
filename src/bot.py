@@ -58,6 +58,10 @@ class ClubBot(commands.Bot):
         setup_role_commands(self)
         setup_help_command(self)
 
+        # Log all registered commands for debugging
+        all_commands = [cmd.name for cmd in self.tree.get_commands()]
+        log.info("Registered commands: %s", ", ".join(all_commands))
+
         guild_id = config.get_guild_id()
         if guild_id:
             # Faster development: sync commands to a single guild
@@ -65,9 +69,13 @@ class ClubBot(commands.Bot):
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
             log.info("Synced %d commands to guild %s", len(synced), guild_id)
+            for cmd in synced:
+                log.debug("Synced command: %s", cmd.name)
         else:
             synced = await self.tree.sync()
             log.info("Synced %d global commands", len(synced))
+            for cmd in synced:
+                log.debug("Synced command: %s", cmd.name)
 
     async def on_ready(self) -> None:
         log.info("Logged in as %s (ID: %s)", self.user, self.user.id if self.user else "unknown")
