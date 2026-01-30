@@ -96,13 +96,28 @@ def setup_help_command(bot: commands.Bot) -> None:
             hr_commands += "Remove a club role from a member.\n\n"
 
             hr_commands += "**`/role list`**\n"
-            hr_commands += "List all club organizational roles.\n\n"
+            hr_commands += "List all club organizational roles grouped by department.\n\n"
 
             hr_commands += "**`/role members <role>`**\n"
             hr_commands += "List all members with a specific role.\n\n"
 
             hr_commands += "**`/role user <user>`**\n"
             hr_commands += "View all roles assigned to a specific user.\n\n"
+
+            hr_commands += "**`/role department create <name> [description]`**\n"
+            hr_commands += "Create a new department for grouping roles.\n\n"
+
+            hr_commands += "**`/role department assign <department> <role_ids>`**\n"
+            hr_commands += "Assign roles to a department by their IDs (comma-separated).\n\n"
+
+            hr_commands += "**`/role department remove <department> <role_ids>`**\n"
+            hr_commands += "Remove roles from a department by their IDs (comma-separated).\n\n"
+
+            hr_commands += "**`/role department list`**\n"
+            hr_commands += "List all departments and their assigned roles.\n\n"
+
+            hr_commands += "**`/role department delete <name>`**\n"
+            hr_commands += "Delete a department (removes all role assignments).\n\n"
 
             embed.add_field(
                 name="👔 HR Commands",

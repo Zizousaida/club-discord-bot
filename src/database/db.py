@@ -111,6 +111,30 @@ def init_db() -> None:
             """
         )
 
+        # Departments for grouping roles
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS departments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT
+            );
+            """
+        )
+
+        # Many-to-many relationship: roles assigned to departments
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS department_roles (
+                department_id INTEGER NOT NULL,
+                role_id INTEGER NOT NULL,
+                PRIMARY KEY (department_id, role_id),
+                FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
+                FOREIGN KEY (role_id) REFERENCES club_roles(id) ON DELETE CASCADE
+            );
+            """
+        )
+
         conn.commit()
     finally:
         conn.close()

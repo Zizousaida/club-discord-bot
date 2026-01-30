@@ -65,3 +65,12 @@ class MemberRole:
     assigned_by: int
 
 
+@dataclass
+class Department:
+    """Represents a department that groups club roles."""
+
+    id: Optional[int]
+    name: str
+    description: Optional[str]
+
+

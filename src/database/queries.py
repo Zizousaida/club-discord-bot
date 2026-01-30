@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 import sqlite3
 
-from .models import Contribution, Warning, ModerationLog, ClubRole, MemberRole
+from .models import Contribution, Warning, ModerationLog, ClubRole, MemberRole, Department
 
 
 # ---------------------------------------------------------------------------
@@ -489,5 +489,230 @@ def get_members_with_role(
     )
     rows = cursor.fetchall()
     return [row["user_id"] for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Department queries
+# ---------------------------------------------------------------------------
+
+
+def _row_to_department(row: sqlite3.Row) -> Department:
+    return Department(
+        id=row["id"],
+        name=row["name"],
+        description=row["description"],
+    )
+
+
+def create_department(
+    conn: sqlite3.Connection,
+    *,
+    name: str,
+    description: Optional[str],
+) -> Department:
+    """Create a new department."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO departments (name, description)
+        VALUES (?, ?)
+        """,
+        (name, description),
+    )
+    conn.commit()
+    dept_id = cursor.lastrowid
+    return get_department_by_id(conn, dept_id)
+
+
+def get_department_by_id(
+    conn: sqlite3.Connection, department_id: int
+) -> Optional[Department]:
+    """Get a department by its ID."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM departments WHERE id = ?",
+        (department_id,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return _row_to_department(row)
+
+
+def get_department_by_name(
+    conn: sqlite3.Connection, name: str
+) -> Optional[Department]:
+    """Get a department by its name."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM departments WHERE name = ?",
+        (name,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return _row_to_department(row)
+
+
+def list_all_departments(conn: sqlite3.Connection) -> List[Department]:
+    """List all departments."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM departments ORDER BY name ASC"
+    )
+    rows = cursor.fetchall()
+    return [_row_to_department(row) for row in rows]
+
+
+def delete_department(
+    conn: sqlite3.Connection, department_id: int
+) -> bool:
+    """
+    Delete a department by ID.
+    
+    Returns True if a department was deleted, False if it didn't exist.
+    Note: This will cascade delete all department_roles entries due to foreign key.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM departments WHERE id = ?",
+        (department_id,),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def assign_role_to_department(
+    conn: sqlite3.Connection,
+    *,
+    department_id: int,
+    role_id: int,
+) -> bool:
+    """Assign a role to a department. Returns True if successful."""
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            INSERT INTO department_roles (department_id, role_id)
+            VALUES (?, ?)
+            """,
+            (department_id, role_id),
+        )
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        # Role already assigned to this department
+        return False
+
+
+def remove_role_from_department(
+    conn: sqlite3.Connection,
+    *,
+    department_id: int,
+    role_id: int,
+) -> bool:
+    """
+    Remove a role from a department.
+    
+    Returns True if an assignment was removed, False if it didn't exist.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        DELETE FROM department_roles
+        WHERE department_id = ? AND role_id = ?
+        """,
+        (department_id, role_id),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def get_roles_for_department(
+    conn: sqlite3.Connection,
+    department_id: int,
+) -> List[ClubRole]:
+    """Get all roles assigned to a specific department."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT cr.* FROM club_roles cr
+        INNER JOIN department_roles dr ON cr.id = dr.role_id
+        WHERE dr.department_id = ?
+        ORDER BY cr.name ASC
+        """,
+        (department_id,),
+    )
+    rows = cursor.fetchall()
+    return [_row_to_club_role(row) for row in rows]
+
+
+def get_departments_for_role(
+    conn: sqlite3.Connection,
+    role_id: int,
+) -> List[Department]:
+    """Get all departments that contain a specific role."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT d.* FROM departments d
+        INNER JOIN department_roles dr ON d.id = dr.department_id
+        WHERE dr.role_id = ?
+        ORDER BY d.name ASC
+        """,
+        (role_id,),
+    )
+    rows = cursor.fetchall()
+    return [_row_to_department(row) for row in rows]
+
+
+def get_roles_grouped_by_department(
+    conn: sqlite3.Connection,
+) -> Dict[Department, List[ClubRole]]:
+    """
+    Get all roles grouped by their departments.
+    
+    Returns a dictionary mapping departments to their roles.
+    Roles not assigned to any department are not included.
+    """
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT d.*, cr.*
+        FROM departments d
+        INNER JOIN department_roles dr ON d.id = dr.department_id
+        INNER JOIN club_roles cr ON dr.role_id = cr.id
+        ORDER BY d.name ASC, cr.name ASC
+        """
+    )
+    rows = cursor.fetchall()
+    
+    result: Dict[Department, List[ClubRole]] = {}
+    for row in rows:
+        dept = _row_to_department(row)
+        role = _row_to_club_role(row)
+        
+        if dept not in result:
+            result[dept] = []
+        result[dept].append(role)
+    
+    return result
+
+
+def get_roles_without_department(
+    conn: sqlite3.Connection,
+) -> List[ClubRole]:
+    """Get all roles that are not assigned to any department."""
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT cr.* FROM club_roles cr
+        LEFT JOIN department_roles dr ON cr.id = dr.role_id
+        WHERE dr.role_id IS NULL
+        ORDER BY cr.name ASC
+        """
+    )
+    rows = cursor.fetchall()
+    return [_row_to_club_role(row) for row in rows]
 
 

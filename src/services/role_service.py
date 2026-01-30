@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from database import db
 from database import queries
-from database.models import ClubRole, MemberRole
+from database.models import ClubRole, Department, MemberRole
 from utils.time import utcnow_iso
 
 
@@ -142,6 +142,126 @@ class RoleService:
                 role_id=role_id,
             )
             return assignment is not None
+        finally:
+            conn.close()
+
+    # Department methods
+
+    def create_department(
+        self,
+        *,
+        name: str,
+        description: Optional[str],
+    ) -> Department:
+        """Create a new department."""
+        conn = db.get_connection()
+        try:
+            return queries.create_department(
+                conn,
+                name=name,
+                description=description,
+            )
+        finally:
+            conn.close()
+
+    def get_department_by_name(self, name: str) -> Optional[Department]:
+        """Get a department by its name."""
+        conn = db.get_connection()
+        try:
+            return queries.get_department_by_name(conn, name)
+        finally:
+            conn.close()
+
+    def get_department_by_id(self, department_id: int) -> Optional[Department]:
+        """Get a department by its ID."""
+        conn = db.get_connection()
+        try:
+            return queries.get_department_by_id(conn, department_id)
+        finally:
+            conn.close()
+
+    def list_all_departments(self) -> List[Department]:
+        """List all departments."""
+        conn = db.get_connection()
+        try:
+            return queries.list_all_departments(conn)
+        finally:
+            conn.close()
+
+    def delete_department(self, department_id: int) -> bool:
+        """
+        Delete a department by ID.
+        
+        Returns True if the department was deleted, False if it didn't exist.
+        This will also remove all role assignments to this department.
+        """
+        conn = db.get_connection()
+        try:
+            return queries.delete_department(conn, department_id)
+        finally:
+            conn.close()
+
+    def assign_role_to_department(
+        self,
+        *,
+        department_id: int,
+        role_id: int,
+    ) -> bool:
+        """Assign a role to a department. Returns True if successful."""
+        conn = db.get_connection()
+        try:
+            return queries.assign_role_to_department(
+                conn,
+                department_id=department_id,
+                role_id=role_id,
+            )
+        finally:
+            conn.close()
+
+    def remove_role_from_department(
+        self,
+        *,
+        department_id: int,
+        role_id: int,
+    ) -> bool:
+        """
+        Remove a role from a department.
+        
+        Returns True if the assignment was removed, False if it didn't exist.
+        """
+        conn = db.get_connection()
+        try:
+            return queries.remove_role_from_department(
+                conn,
+                department_id=department_id,
+                role_id=role_id,
+            )
+        finally:
+            conn.close()
+
+    def get_roles_for_department(self, department_id: int) -> List[ClubRole]:
+        """Get all roles assigned to a specific department."""
+        conn = db.get_connection()
+        try:
+            return queries.get_roles_for_department(conn, department_id)
+        finally:
+            conn.close()
+
+    def get_roles_grouped_by_department(
+        self,
+    ) -> Dict[Department, List[ClubRole]]:
+        """Get all roles grouped by their departments."""
+        conn = db.get_connection()
+        try:
+            return queries.get_roles_grouped_by_department(conn)
+        finally:
+            conn.close()
+
+    def get_roles_without_department(self) -> List[ClubRole]:
+        """Get all roles that are not assigned to any department."""
+        conn = db.get_connection()
+        try:
+            return queries.get_roles_without_department(conn)
         finally:
             conn.close()
 

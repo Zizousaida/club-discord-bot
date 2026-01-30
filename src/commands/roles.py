@@ -216,16 +216,19 @@ def setup_role_commands(bot: commands.Bot) -> None:
 
     @role_group.command(
         name="list",
-        description="List all club organizational roles.",
+        description="List all club organizational roles grouped by department.",
     )
     @hr_only()
     async def role_list(
         interaction: discord.Interaction,
     ) -> None:
         service = _get_role_service(interaction.client)  # type: ignore[arg-type]
-        roles = service.list_all_roles()
+        
+        # Get roles grouped by department
+        roles_by_dept = service.get_roles_grouped_by_department()
+        roles_without_dept = service.get_roles_without_department()
 
-        if not roles:
+        if not roles_by_dept and not roles_without_dept:
             await interaction.response.send_message(
                 "No club roles have been created yet.",
                 ephemeral=True,
@@ -234,19 +237,45 @@ def setup_role_commands(bot: commands.Bot) -> None:
 
         embed = discord.Embed(
             title="Club Organizational Roles",
+            description="Roles grouped by department",
             color=discord.Color.blurple(),
         )
 
-        for role in roles:
-            # Get member count for this role
-            members = service.get_role_members(role.id)
-            member_count = len(members)
-            value = f"ID: `{role.id}` • {member_count} member(s)"
-            if role.description:
-                value += f"\n{role.description}"
+        # Add roles grouped by department
+        for department, roles in roles_by_dept.items():
+            role_list = []
+            for role in roles:
+                members = service.get_role_members(role.id)
+                member_count = len(members)
+                role_info = f"• **{role.name}** (ID: `{role.id}`) • {member_count} member(s)"
+                if role.description:
+                    role_info += f"\n  └ {role.description}"
+                role_list.append(role_info)
+            
+            dept_name = f"🏢 {department.name}"
+            if department.description:
+                dept_name += f" - {department.description}"
+            
             embed.add_field(
-                name=role.name,
-                value=value,
+                name=dept_name,
+                value="\n".join(role_list) if role_list else "No roles",
+                inline=False,
+            )
+
+        # Add roles without department
+        if roles_without_dept:
+            role_list = []
+            for role in roles_without_dept:
+                members = service.get_role_members(role.id)
+                member_count = len(members)
+                role_info = f"• **{role.name}** (ID: `{role.id}`) • {member_count} member(s)"
+                if role.description:
+                    role_info += f"\n  └ {role.description}"
+                role_list.append(role_info)
+            
+            embed.add_field(
+                name="📋 Unassigned Roles",
+                value="\n".join(role_list),
                 inline=False,
             )
 
@@ -351,6 +380,315 @@ def setup_role_commands(bot: commands.Bot) -> None:
             )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # Department subcommands
+    department_group = app_commands.Group(
+        name="department",
+        description="Manage departments for grouping roles.",
+        parent=role_group,
+    )
+
+    @department_group.command(
+        name="create",
+        description="Create a new department.",
+    )
+    @hr_only()
+    @app_commands.describe(
+        name="Name of the department (must be unique)",
+        description="Optional description of the department",
+    )
+    async def department_create(
+        interaction: discord.Interaction,
+        name: str,
+        description: Optional[str] = None,
+    ) -> None:
+        service = _get_role_service(interaction.client)  # type: ignore[arg-type]
+
+        # Check if department already exists
+        existing = service.get_department_by_name(name)
+        if existing:
+            await interaction.response.send_message(
+                f"❌ A department named `{name}` already exists.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            department = service.create_department(name=name, description=description)
+            embed = discord.Embed(
+                title="✅ Department Created",
+                description=f"Created department `{department.name}` (ID: {department.id})",
+                color=discord.Color.green(),
+            )
+            if department.description:
+                embed.add_field(name="Description", value=department.description, inline=False)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ Failed to create department: {str(e)}",
+                ephemeral=True,
+            )
+
+    @department_group.command(
+        name="assign",
+        description="Assign roles to a department by their IDs.",
+    )
+    @hr_only()
+    @app_commands.describe(
+        department="Name of the department",
+        role_ids="Comma-separated list of role IDs to assign (e.g., 1,2,3)",
+    )
+    async def department_assign(
+        interaction: discord.Interaction,
+        department: str,
+        role_ids: str,
+    ) -> None:
+        service = _get_role_service(interaction.client)  # type: ignore[arg-type]
+
+        dept = service.get_department_by_name(department)
+        if not dept:
+            await interaction.response.send_message(
+                f"❌ Department `{department}` not found.",
+                ephemeral=True,
+            )
+            return
+
+        # Parse role IDs
+        try:
+            role_id_list = [int(rid.strip()) for rid in role_ids.split(",")]
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Invalid role IDs format. Please provide comma-separated numbers (e.g., 1,2,3).",
+                ephemeral=True,
+            )
+            return
+
+        if not role_id_list:
+            await interaction.response.send_message(
+                "❌ No role IDs provided.",
+                ephemeral=True,
+            )
+            return
+
+        # Validate and assign roles
+        assigned = []
+        not_found = []
+        already_assigned = []
+
+        for role_id in role_id_list:
+            role = service.get_role_by_id(role_id)
+            if not role:
+                not_found.append(str(role_id))
+                continue
+
+            # Check if already assigned
+            dept_roles = service.get_roles_for_department(dept.id)
+            if role in dept_roles:
+                already_assigned.append(role.name)
+                continue
+
+            if service.assign_role_to_department(
+                department_id=dept.id,
+                role_id=role_id,
+            ):
+                assigned.append(role.name)
+            else:
+                already_assigned.append(role.name)
+
+        # Build response
+        embed = discord.Embed(
+            title="📋 Role Assignment Results",
+            color=discord.Color.blurple(),
+        )
+
+        if assigned:
+            embed.add_field(
+                name="✅ Assigned",
+                value="\n".join(f"• {name}" for name in assigned),
+                inline=False,
+            )
+
+        if already_assigned:
+            embed.add_field(
+                name="⚠️ Already Assigned",
+                value="\n".join(f"• {name}" for name in already_assigned),
+                inline=False,
+            )
+
+        if not_found:
+            embed.add_field(
+                name="❌ Not Found",
+                value="\n".join(f"• ID: {rid}" for rid in not_found),
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @department_group.command(
+        name="remove",
+        description="Remove roles from a department by their IDs.",
+    )
+    @hr_only()
+    @app_commands.describe(
+        department="Name of the department",
+        role_ids="Comma-separated list of role IDs to remove (e.g., 1,2,3)",
+    )
+    async def department_remove(
+        interaction: discord.Interaction,
+        department: str,
+        role_ids: str,
+    ) -> None:
+        service = _get_role_service(interaction.client)  # type: ignore[arg-type]
+
+        dept = service.get_department_by_name(department)
+        if not dept:
+            await interaction.response.send_message(
+                f"❌ Department `{department}` not found.",
+                ephemeral=True,
+            )
+            return
+
+        # Parse role IDs
+        try:
+            role_id_list = [int(rid.strip()) for rid in role_ids.split(",")]
+        except ValueError:
+            await interaction.response.send_message(
+                "❌ Invalid role IDs format. Please provide comma-separated numbers (e.g., 1,2,3).",
+                ephemeral=True,
+            )
+            return
+
+        if not role_id_list:
+            await interaction.response.send_message(
+                "❌ No role IDs provided.",
+                ephemeral=True,
+            )
+            return
+
+        # Remove roles
+        removed = []
+        not_found = []
+        not_assigned = []
+
+        for role_id in role_id_list:
+            role = service.get_role_by_id(role_id)
+            if not role:
+                not_found.append(str(role_id))
+                continue
+
+            if service.remove_role_from_department(
+                department_id=dept.id,
+                role_id=role_id,
+            ):
+                removed.append(role.name)
+            else:
+                not_assigned.append(role.name)
+
+        # Build response
+        embed = discord.Embed(
+            title="📋 Role Removal Results",
+            color=discord.Color.orange(),
+        )
+
+        if removed:
+            embed.add_field(
+                name="✅ Removed",
+                value="\n".join(f"• {name}" for name in removed),
+                inline=False,
+            )
+
+        if not_assigned:
+            embed.add_field(
+                name="⚠️ Not Assigned",
+                value="\n".join(f"• {name}" for name in not_assigned),
+                inline=False,
+            )
+
+        if not_found:
+            embed.add_field(
+                name="❌ Not Found",
+                value="\n".join(f"• ID: {rid}" for rid in not_found),
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @department_group.command(
+        name="list",
+        description="List all departments and their roles.",
+    )
+    @hr_only()
+    async def department_list(
+        interaction: discord.Interaction,
+    ) -> None:
+        service = _get_role_service(interaction.client)  # type: ignore[arg-type]
+        departments = service.list_all_departments()
+
+        if not departments:
+            await interaction.response.send_message(
+                "No departments have been created yet.",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title="Departments",
+            color=discord.Color.blurple(),
+        )
+
+        for dept in departments:
+            roles = service.get_roles_for_department(dept.id)
+            dept_name = f"🏢 {dept.name}"
+            if dept.description:
+                dept_name += f" - {dept.description}"
+            
+            if roles:
+                role_list = [f"• {role.name} (ID: `{role.id}`)" for role in roles]
+                value = f"**{len(roles)} role(s):**\n" + "\n".join(role_list)
+            else:
+                value = "No roles assigned"
+
+            embed.add_field(
+                name=dept_name,
+                value=value,
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @department_group.command(
+        name="delete",
+        description="Delete a department.",
+    )
+    @hr_only()
+    @app_commands.describe(
+        name="Name of the department to delete",
+    )
+    async def department_delete(
+        interaction: discord.Interaction,
+        name: str,
+    ) -> None:
+        service = _get_role_service(interaction.client)  # type: ignore[arg-type]
+
+        dept = service.get_department_by_name(name)
+        if not dept:
+            await interaction.response.send_message(
+                f"❌ Department `{name}` not found.",
+                ephemeral=True,
+            )
+            return
+
+        deleted = service.delete_department(dept.id)
+        if deleted:
+            await interaction.response.send_message(
+                f"✅ Department `{name}` has been deleted. All role assignments have been removed.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                f"❌ Failed to delete department `{name}`.",
+                ephemeral=True,
+            )
 
     tree.add_command(role_group)
 
