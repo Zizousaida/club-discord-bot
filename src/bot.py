@@ -13,6 +13,7 @@ from commands.contribution import setup_contribution_commands
 from commands.moderation import setup_moderation_commands
 from commands.roles import setup_role_commands
 from commands.help import setup_help_command
+from commands.announcement import setup_announcement_commands
 
 
 log = logging.getLogger(__name__)
@@ -57,6 +58,7 @@ class ClubBot(commands.Bot):
         setup_moderation_commands(self)
         setup_role_commands(self)
         setup_help_command(self)
+        setup_announcement_commands(self)
 
         # Log all registered commands for debugging
         all_commands = [cmd.name for cmd in self.tree.get_commands()]

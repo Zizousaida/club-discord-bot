@@ -133,6 +133,18 @@ def setup_help_command(bot: commands.Bot) -> None:
                 inline=False,
             )
 
+            # Announcement Commands
+            announcement_commands = "**`/announce <channel> <announcement_type> <message> [ping_everyone]`**\n"
+            announcement_commands += "Send an announcement to a specific channel.\n"
+            announcement_commands += "• Types: General, Event, Important, Update, Reminder, Welcome\n"
+            announcement_commands += "• Optional: Ping @everyone (requires permission)\n\n"
+
+            embed.add_field(
+                name="📢 Announcement Commands",
+                value=announcement_commands,
+                inline=False,
+            )
+
         # Permission Notice
         if not is_hr and not is_staff:
             embed.add_field(
