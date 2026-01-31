@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 import discord
 from discord import app_commands
@@ -9,6 +9,52 @@ from discord.ext import commands
 from services.role_service import RoleService
 from utils.permissions import hr_only
 from utils.time import format_timestamp_for_display
+
+
+def _split_field_value(value: str, max_length: int = 1024) -> List[str]:
+    """
+    Split a field value into chunks that fit within Discord's embed field limit.
+    
+    Discord embed field values have a maximum length of 1024 characters.
+    This function splits long values into multiple chunks, trying to break
+    at newline boundaries when possible.
+    """
+    if len(value) <= max_length:
+        return [value]
+    
+    chunks = []
+    lines = value.split('\n')
+    current_chunk = []
+    current_length = 0
+    
+    for line in lines:
+        line_length = len(line) + 1  # +1 for the newline character
+        
+        # If adding this line would exceed the limit
+        if current_length + line_length > max_length:
+            # If current chunk has content, save it
+            if current_chunk:
+                chunks.append('\n'.join(current_chunk))
+                current_chunk = []
+                current_length = 0
+            
+            # If a single line is too long, truncate it
+            if len(line) > max_length:
+                # Try to truncate at word boundaries if possible
+                truncated = line[:max_length - 3] + "..."
+                chunks.append(truncated)
+            else:
+                current_chunk.append(line)
+                current_length = line_length
+        else:
+            current_chunk.append(line)
+            current_length += line_length
+    
+    # Add any remaining content
+    if current_chunk:
+        chunks.append('\n'.join(current_chunk))
+    
+    return chunks
 
 
 def _get_role_service(bot: commands.Bot) -> RoleService:
@@ -249,18 +295,28 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 member_count = len(members)
                 role_info = f"• **{role.name}** (ID: `{role.id}`) • {member_count} member(s)"
                 if role.description:
-                    role_info += f"\n  └ {role.description}"
+                    # Truncate description if it's too long to prevent field overflow
+                    desc = role.description
+                    if len(desc) > 200:  # Leave room for other text in the role_info
+                        desc = desc[:197] + "..."
+                    role_info += f"\n  └ {desc}"
                 role_list.append(role_info)
             
             dept_name = f"🏢 {department.name}"
             if department.description:
                 dept_name += f" - {department.description}"
             
-            embed.add_field(
-                name=dept_name,
-                value="\n".join(role_list) if role_list else "No roles",
-                inline=False,
-            )
+            field_value = "\n".join(role_list) if role_list else "No roles"
+            # Split into multiple fields if value is too long
+            value_chunks = _split_field_value(field_value)
+            
+            for i, chunk in enumerate(value_chunks):
+                field_name = dept_name if i == 0 else f"{dept_name} (cont.)"
+                embed.add_field(
+                    name=field_name,
+                    value=chunk,
+                    inline=False,
+                )
 
         # Add roles without department
         if roles_without_dept:
@@ -270,14 +326,24 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 member_count = len(members)
                 role_info = f"• **{role.name}** (ID: `{role.id}`) • {member_count} member(s)"
                 if role.description:
-                    role_info += f"\n  └ {role.description}"
+                    # Truncate description if it's too long to prevent field overflow
+                    desc = role.description
+                    if len(desc) > 200:  # Leave room for other text in the role_info
+                        desc = desc[:197] + "..."
+                    role_info += f"\n  └ {desc}"
                 role_list.append(role_info)
             
-            embed.add_field(
-                name="📋 Unassigned Roles",
-                value="\n".join(role_list),
-                inline=False,
-            )
+            field_value = "\n".join(role_list)
+            # Split into multiple fields if value is too long
+            value_chunks = _split_field_value(field_value)
+            
+            for i, chunk in enumerate(value_chunks):
+                field_name = "📋 Unassigned Roles" if i == 0 else "📋 Unassigned Roles (cont.)"
+                embed.add_field(
+                    name=field_name,
+                    value=chunk,
+                    inline=False,
+                )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -320,24 +386,22 @@ def setup_role_commands(bot: commands.Bot) -> None:
 
         # Format member mentions (Discord will resolve them)
         member_mentions = [f"<@{user_id}>" for user_id in member_ids]
-        # Split into chunks if too many members
-        if len(member_mentions) <= 25:
+        field_value = "\n".join(member_mentions) if member_mentions else "None"
+        
+        # Split into multiple fields if value is too long (1024 char limit)
+        value_chunks = _split_field_value(field_value)
+        
+        for i, chunk in enumerate(value_chunks):
+            if len(value_chunks) == 1:
+                field_name = "Members"
+            else:
+                field_name = f"Members (part {i + 1})"
+            
             embed.add_field(
-                name="Members",
-                value="\n".join(member_mentions) or "None",
+                name=field_name,
+                value=chunk,
                 inline=False,
             )
-        else:
-            # Discord embed fields have limits, so split into multiple fields
-            chunk_size = 20
-            for i in range(0, len(member_mentions), chunk_size):
-                chunk = member_mentions[i : i + chunk_size]
-                field_name = f"Members ({i + 1}-{min(i + chunk_size, len(member_mentions))})"
-                embed.add_field(
-                    name=field_name,
-                    value="\n".join(chunk),
-                    inline=False,
-                )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -372,7 +436,15 @@ def setup_role_commands(bot: commands.Bot) -> None:
         for role in roles:
             value = f"ID: `{role.id}`"
             if role.description:
-                value += f"\n{role.description}"
+                # Truncate description if it's too long (field value limit is 1024)
+                desc = role.description
+                max_desc_length = 1024 - len(value) - 1  # -1 for newline
+                if len(desc) > max_desc_length:
+                    desc = desc[:max_desc_length - 3] + "..."
+                value += f"\n{desc}"
+            # Ensure the entire value doesn't exceed 1024 characters
+            if len(value) > 1024:
+                value = value[:1021] + "..."
             embed.add_field(
                 name=role.name,
                 value=value,
@@ -648,11 +720,16 @@ def setup_role_commands(bot: commands.Bot) -> None:
             else:
                 value = "No roles assigned"
 
-            embed.add_field(
-                name=dept_name,
-                value=value,
-                inline=False,
-            )
+            # Split into multiple fields if value is too long
+            value_chunks = _split_field_value(value)
+            
+            for i, chunk in enumerate(value_chunks):
+                field_name = dept_name if i == 0 else f"{dept_name} (cont.)"
+                embed.add_field(
+                    name=field_name,
+                    value=chunk,
+                    inline=False,
+                )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
