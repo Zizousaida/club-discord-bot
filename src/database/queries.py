@@ -678,7 +678,8 @@ def get_roles_grouped_by_department(
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT d.*, cr.*
+        SELECT d.id as dept_id, d.name as dept_name, d.description as dept_description,
+               cr.id as role_id, cr.name as role_name, cr.description as role_description
         FROM departments d
         INNER JOIN department_roles dr ON d.id = dr.department_id
         INNER JOIN club_roles cr ON dr.role_id = cr.id
@@ -687,14 +688,37 @@ def get_roles_grouped_by_department(
     )
     rows = cursor.fetchall()
     
-    result: Dict[Department, List[ClubRole]] = {}
+    # Group by department_id first (using int as key, which is hashable)
+    dept_roles: Dict[int, List[ClubRole]] = {}
+    dept_info: Dict[int, Department] = {}
+    
     for row in rows:
-        dept = _row_to_department(row)
-        role = _row_to_club_role(row)
+        dept_id = row["dept_id"]
+        role_id = row["role_id"]
         
-        if dept not in result:
-            result[dept] = []
-        result[dept].append(role)
+        # Store department info (only need to do this once per department)
+        if dept_id not in dept_info:
+            dept_info[dept_id] = Department(
+                id=row["dept_id"],
+                name=row["dept_name"],
+                description=row["dept_description"],
+            )
+        
+        # Add role to department's list
+        if dept_id not in dept_roles:
+            dept_roles[dept_id] = []
+        
+        role = ClubRole(
+            id=row["role_id"],
+            name=row["role_name"],
+            description=row["role_description"],
+        )
+        dept_roles[dept_id].append(role)
+    
+    # Convert to final format: Dict[Department, List[ClubRole]]
+    result: Dict[Department, List[ClubRole]] = {}
+    for dept_id, roles in dept_roles.items():
+        result[dept_info[dept_id]] = roles
     
     return result
 
