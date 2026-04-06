@@ -1,7 +1,5 @@
 import os
 import sqlite3
-from typing import Optional
-
 
 DB_DEFAULT_PATH = "club_bot.db"
 
@@ -16,7 +14,7 @@ def get_db_path() -> str:
     return os.getenv("DATABASE_PATH", DB_DEFAULT_PATH)
 
 
-def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
+def get_connection(db_path: str | None = None) -> sqlite3.Connection:
     """
     Create a new SQLite connection.
 
@@ -24,6 +22,8 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     """
     path = db_path or get_db_path()
     conn = sqlite3.connect(path)
+    # Ensure constraints behave as expected (SQLite does not enable this by default).
+    conn.execute("PRAGMA foreign_keys = ON;")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -138,5 +138,3 @@ def init_db() -> None:
         conn.commit()
     finally:
         conn.close()
-
-

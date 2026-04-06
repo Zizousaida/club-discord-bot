@@ -6,14 +6,15 @@ import discord
 from discord.ext import commands
 
 import config
+from commands.admin import setup_admin_commands
+from commands.contribution import setup_contribution_commands
+from commands.export import setup_export_commands
+from commands.help import setup_help_command
+from commands.moderation import setup_moderation_commands
+from commands.roles import setup_role_commands
 from database.db import init_db
 from services.contribution_service import ContributionService
 from services.role_service import RoleService
-from commands.contribution import setup_contribution_commands
-from commands.moderation import setup_moderation_commands
-from commands.roles import setup_role_commands
-from commands.help import setup_help_command
-
 
 log = logging.getLogger(__name__)
 
@@ -57,6 +58,8 @@ class ClubBot(commands.Bot):
         setup_moderation_commands(self)
         setup_role_commands(self)
         setup_help_command(self)
+        setup_admin_commands(self)
+        setup_export_commands(self)
 
         # Log all registered commands for debugging
         all_commands = [cmd.name for cmd in self.tree.get_commands()]
@@ -87,5 +90,3 @@ class ClubBot(commands.Bot):
 def create_bot() -> ClubBot:
     """Factory function used by run.py to create the bot instance."""
     return ClubBot()
-
-

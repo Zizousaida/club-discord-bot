@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def utcnow_iso() -> str:
@@ -9,7 +9,7 @@ def utcnow_iso() -> str:
 
     Stored timestamps are always in UTC to avoid timezone issues.
     """
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()
 
 
 def format_timestamp_for_display(iso_str: str) -> str:
@@ -24,8 +24,6 @@ def format_timestamp_for_display(iso_str: str) -> str:
         return iso_str
 
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
 
-    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
-
+    return dt.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")

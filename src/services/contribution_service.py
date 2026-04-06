@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
-
-from database import db
-from database import queries
+from database import db, queries
 from database.models import Contribution
 from utils.time import utcnow_iso
 
@@ -22,7 +19,7 @@ class ContributionService:
         user_id: int,
         username: str,
         description: str,
-        links: Optional[str],
+        links: str | None,
     ) -> Contribution:
         """Create and store a new contribution."""
         conn = db.get_connection()
@@ -42,8 +39,8 @@ class ContributionService:
         self,
         *,
         user_id: int,
-        limit: Optional[int] = None,
-    ) -> List[Contribution]:
+        limit: int | None = None,
+    ) -> list[Contribution]:
         """Return contributions submitted by a specific user."""
         conn = db.get_connection()
         try:
@@ -58,8 +55,8 @@ class ContributionService:
     def list_all_contributions(
         self,
         *,
-        limit: Optional[int] = None,
-    ) -> List[Contribution]:
+        limit: int | None = None,
+    ) -> list[Contribution]:
         """Return all contributions in the system."""
         conn = db.get_connection()
         try:
@@ -71,7 +68,7 @@ class ContributionService:
         self,
         *,
         limit: int = 10,
-    ) -> List[Contribution]:
+    ) -> list[Contribution]:
         """Return the latest contributions."""
         conn = db.get_connection()
         try:
@@ -79,7 +76,7 @@ class ContributionService:
         finally:
             conn.close()
 
-    def list_pending_contributions(self) -> List[Contribution]:
+    def list_pending_contributions(self) -> list[Contribution]:
         """Return all contributions that are still pending review."""
         conn = db.get_connection()
         try:
@@ -92,7 +89,7 @@ class ContributionService:
         *,
         contribution_id: int,
         reviewer_id: int,
-    ) -> Optional[Contribution]:
+    ) -> Contribution | None:
         """Mark a contribution as approved."""
         conn = db.get_connection()
         try:
@@ -112,7 +109,7 @@ class ContributionService:
         *,
         contribution_id: int,
         reviewer_id: int,
-    ) -> Optional[Contribution]:
+    ) -> Contribution | None:
         """Mark a contribution as rejected."""
         conn = db.get_connection()
         try:
@@ -126,5 +123,3 @@ class ContributionService:
             )
         finally:
             conn.close()
-
-

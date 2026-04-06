@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/data
+    environment:
+      # Store the sqlite DB in a persisted volume directory
+      - DATABASE_PATH=/data/club_bot.db
+    restart: unless-stopped
+

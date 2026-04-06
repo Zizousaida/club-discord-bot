@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -35,13 +34,11 @@ LOG_CHANNEL_ID: int = _get_int("LOG_CHANNEL_ID", 0)
 DATABASE_PATH: str = os.getenv("DATABASE_PATH", "club_bot.db")
 
 
-def get_guild_id() -> Optional[int]:
+def get_guild_id() -> int | None:
     """Return the configured guild ID, or None if not set."""
     return GUILD_ID or None
 
 
-def get_log_channel_id() -> Optional[int]:
+def get_log_channel_id() -> int | None:
     """Return the configured moderation log channel ID, or None if not set."""
     return LOG_CHANNEL_ID or None
-
-

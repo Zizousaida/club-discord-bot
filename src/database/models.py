@@ -1,30 +1,29 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class Contribution:
     """Represents a contribution submitted by a member."""
 
-    id: Optional[int]
+    id: int | None
     user_id: int
     username: str
     description: str
-    links: Optional[str]
+    links: str | None
     timestamp: str
     approved: bool
     status: str
-    reviewed_by: Optional[int]
-    reviewed_at: Optional[str]
+    reviewed_by: int | None
+    reviewed_at: str | None
 
 
 @dataclass
 class Warning:
     """Represents a moderation warning issued to a user."""
 
-    id: Optional[int]
+    id: int | None
     guild_id: int
     user_id: int
     moderator_id: int
@@ -36,13 +35,13 @@ class Warning:
 class ModerationLog:
     """Represents a generic moderation log entry."""
 
-    id: Optional[int]
+    id: int | None
     guild_id: int
-    user_id: Optional[int]
+    user_id: int | None
     moderator_id: int
     action: str
-    reason: Optional[str]
-    details: Optional[str]
+    reason: str | None
+    details: str | None
     timestamp: str
 
 
@@ -50,9 +49,9 @@ class ModerationLog:
 class ClubRole:
     """Represents an organizational role within the club."""
 
-    id: Optional[int]
+    id: int | None
     name: str
-    description: Optional[str]
+    description: str | None
 
 
 @dataclass
@@ -69,8 +68,6 @@ class MemberRole:
 class Department:
     """Represents a department that groups club roles."""
 
-    id: Optional[int]
+    id: int | None
     name: str
-    description: Optional[str]
-
-
+    description: str | None

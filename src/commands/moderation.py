@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional
+from datetime import timedelta
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
+import config
 from database import db, queries
 from utils.permissions import staff_only
 from utils.time import utcnow_iso
-import config
 
 
 async def _send_mod_log(
@@ -41,6 +41,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
     - /warn
     - /warnings
     - /clear
+    - /modlogs
     """
 
     tree = bot.tree
@@ -59,7 +60,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         interaction: discord.Interaction,
         member: discord.Member,
         duration_minutes: app_commands.Range[int, 1, 10080],
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ) -> None:
         if member == interaction.user:
             await interaction.response.send_message(
@@ -68,7 +69,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
             )
             return
 
-        until = discord.utils.utcnow() + discord.utils.timedelta(minutes=duration_minutes)
+        until = discord.utils.utcnow() + timedelta(minutes=duration_minutes)
 
         try:
             await member.timeout(until, reason=reason or "Muted by staff")
@@ -125,7 +126,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
     async def unmute(
         interaction: discord.Interaction,
         member: discord.Member,
-        reason: Optional[str] = None,
+        reason: str | None = None,
     ) -> None:
         try:
             await member.timeout(None, reason=reason or "Unmuted by staff")
@@ -326,4 +327,64 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
 
     tree.add_command(clear)
 
+    @app_commands.command(
+        name="modlogs",
+        description="View recent moderation log entries.",
+    )
+    @staff_only()
+    @app_commands.describe(
+        member="Optional member to filter logs for",
+        limit="Max entries to show (1-25)",
+    )
+    async def modlogs(
+        interaction: discord.Interaction,
+        member: discord.Member | None = None,
+        limit: app_commands.Range[int, 1, 25] = 10,
+    ) -> None:
+        if not interaction.guild_id:
+            await interaction.response.send_message(
+                "This command can only be used in a server.",
+                ephemeral=True,
+            )
+            return
 
+        conn = db.get_connection()
+        try:
+            logs = queries.list_moderation_logs(
+                conn,
+                guild_id=interaction.guild_id,
+                user_id=member.id if member else None,
+                limit=limit,
+            )
+        finally:
+            conn.close()
+
+        if not logs:
+            await interaction.response.send_message(
+                "No moderation logs found for that filter.",
+                ephemeral=True,
+            )
+            return
+
+        title = "Moderation logs"
+        if member:
+            title = f"Moderation logs for {member}"
+
+        embed = discord.Embed(
+            title=title,
+            color=discord.Color.blurple(),
+        )
+
+        for entry in logs:
+            who = f"<@{entry.user_id}>" if entry.user_id else "N/A"
+            reason = entry.reason or "—"
+            details = entry.details or "—"
+            embed.add_field(
+                name=f"{entry.action} • {entry.timestamp}",
+                value=f"User: {who}\nModerator: <@{entry.moderator_id}>\nReason: {reason}\nDetails: {details}",
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    tree.add_command(modlogs)

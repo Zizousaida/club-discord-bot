@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Optional
-
 import sqlite3
 
-from .models import Contribution, Warning, ModerationLog, ClubRole, MemberRole, Department
-
+from .models import ClubRole, Contribution, Department, MemberRole, ModerationLog, Warning
 
 # ---------------------------------------------------------------------------
 # Contribution queries
@@ -18,7 +15,7 @@ def create_contribution(
     user_id: int,
     username: str,
     description: str,
-    links: Optional[str],
+    links: str | None,
     timestamp: str,
 ) -> Contribution:
     """Insert a new contribution into the database."""
@@ -33,7 +30,10 @@ def create_contribution(
     )
     conn.commit()
     contribution_id = cursor.lastrowid
-    return get_contribution_by_id(conn, contribution_id)
+    assert contribution_id is not None
+    created = get_contribution_by_id(conn, int(contribution_id))
+    assert created is not None
+    return created
 
 
 def _row_to_contribution(row: sqlite3.Row) -> Contribution:
@@ -51,9 +51,7 @@ def _row_to_contribution(row: sqlite3.Row) -> Contribution:
     )
 
 
-def get_contribution_by_id(
-    conn: sqlite3.Connection, contribution_id: int
-) -> Optional[Contribution]:
+def get_contribution_by_id(conn: sqlite3.Connection, contribution_id: int) -> Contribution | None:
     cursor = conn.cursor()
     cursor.execute(
         "SELECT * FROM contributions WHERE id = ?",
@@ -69,10 +67,10 @@ def get_contributions_by_user(
     conn: sqlite3.Connection,
     user_id: int,
     *,
-    limit: Optional[int] = None,
-) -> List[Contribution]:
+    limit: int | None = None,
+) -> list[Contribution]:
     sql = "SELECT * FROM contributions WHERE user_id = ? ORDER BY timestamp DESC"
-    params: Iterable[object] = (user_id,)
+    params: tuple[object, ...] = (user_id,)
     if limit is not None:
         sql += " LIMIT ?"
         params = (user_id, limit)
@@ -86,10 +84,10 @@ def get_contributions_by_user(
 def get_all_contributions(
     conn: sqlite3.Connection,
     *,
-    limit: Optional[int] = None,
-) -> List[Contribution]:
+    limit: int | None = None,
+) -> list[Contribution]:
     sql = "SELECT * FROM contributions ORDER BY timestamp DESC"
-    params: Iterable[object] = ()
+    params: tuple[object, ...] = ()
     if limit is not None:
         sql += " LIMIT ?"
         params = (limit,)
@@ -104,13 +102,13 @@ def get_latest_contributions(
     conn: sqlite3.Connection,
     *,
     limit: int = 10,
-) -> List[Contribution]:
+) -> list[Contribution]:
     return get_all_contributions(conn, limit=limit)
 
 
 def list_pending_contributions(
     conn: sqlite3.Connection,
-) -> List[Contribution]:
+) -> list[Contribution]:
     cursor = conn.cursor()
     cursor.execute(
         """
@@ -131,7 +129,7 @@ def update_contribution_status(
     approved: bool,
     reviewer_id: int,
     reviewed_at: str,
-) -> Optional[Contribution]:
+) -> Contribution | None:
     """
     Update the status of a contribution (approved / rejected).
 
@@ -190,12 +188,13 @@ def add_warning(
     )
     conn.commit()
     warning_id = cursor.lastrowid
-    return get_warning_by_id(conn, warning_id)
+    assert warning_id is not None
+    created = get_warning_by_id(conn, int(warning_id))
+    assert created is not None
+    return created
 
 
-def get_warning_by_id(
-    conn: sqlite3.Connection, warning_id: int
-) -> Optional[Warning]:
+def get_warning_by_id(conn: sqlite3.Connection, warning_id: int) -> Warning | None:
     cursor = conn.cursor()
     cursor.execute(
         "SELECT * FROM warnings WHERE id = ?",
@@ -212,7 +211,7 @@ def get_warnings_for_user(
     *,
     guild_id: int,
     user_id: int,
-) -> List[Warning]:
+) -> list[Warning]:
     cursor = conn.cursor()
     cursor.execute(
         """
@@ -248,11 +247,11 @@ def add_moderation_log(
     conn: sqlite3.Connection,
     *,
     guild_id: int,
-    user_id: Optional[int],
+    user_id: int | None,
     moderator_id: int,
     action: str,
-    reason: Optional[str],
-    details: Optional[str],
+    reason: str | None,
+    details: str | None,
     timestamp: str,
 ) -> ModerationLog:
     """Insert a new moderation log entry."""
@@ -267,12 +266,13 @@ def add_moderation_log(
     )
     conn.commit()
     log_id = cursor.lastrowid
-    return get_moderation_log_by_id(conn, log_id)
+    assert log_id is not None
+    created = get_moderation_log_by_id(conn, int(log_id))
+    assert created is not None
+    return created
 
 
-def get_moderation_log_by_id(
-    conn: sqlite3.Connection, log_id: int
-) -> Optional[ModerationLog]:
+def get_moderation_log_by_id(conn: sqlite3.Connection, log_id: int) -> ModerationLog | None:
     cursor = conn.cursor()
     cursor.execute(
         "SELECT * FROM moderation_logs WHERE id = ?",
@@ -282,6 +282,63 @@ def get_moderation_log_by_id(
     if row is None:
         return None
     return _row_to_moderation_log(row)
+
+
+def list_moderation_logs(
+    conn: sqlite3.Connection,
+    *,
+    guild_id: int,
+    user_id: int | None = None,
+    limit: int = 25,
+) -> list[ModerationLog]:
+    """
+    List moderation logs for a guild, optionally filtered to a specific user.
+    """
+    cursor = conn.cursor()
+    if user_id is None:
+        cursor.execute(
+            """
+            SELECT * FROM moderation_logs
+            WHERE guild_id = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (guild_id, limit),
+        )
+    else:
+        cursor.execute(
+            """
+            SELECT * FROM moderation_logs
+            WHERE guild_id = ? AND user_id = ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (guild_id, user_id, limit),
+        )
+    rows = cursor.fetchall()
+    return [_row_to_moderation_log(row) for row in rows]
+
+
+def get_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    """
+    Return basic table counts for admin diagnostics.
+    """
+    cursor = conn.cursor()
+    tables = [
+        "contributions",
+        "warnings",
+        "moderation_logs",
+        "club_roles",
+        "member_roles",
+        "departments",
+        "department_roles",
+    ]
+    counts: dict[str, int] = {}
+    for t in tables:
+        cursor.execute(f"SELECT COUNT(*) as c FROM {t}")  # noqa: S608
+        row = cursor.fetchone()
+        counts[t] = int(row["c"]) if row else 0
+    return counts
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +358,7 @@ def create_club_role(
     conn: sqlite3.Connection,
     *,
     name: str,
-    description: Optional[str],
+    description: str | None,
 ) -> ClubRole:
     """Create a new club role."""
     cursor = conn.cursor()
@@ -314,12 +371,13 @@ def create_club_role(
     )
     conn.commit()
     role_id = cursor.lastrowid
-    return get_club_role_by_id(conn, role_id)
+    assert role_id is not None
+    created = get_club_role_by_id(conn, int(role_id))
+    assert created is not None
+    return created
 
 
-def get_club_role_by_id(
-    conn: sqlite3.Connection, role_id: int
-) -> Optional[ClubRole]:
+def get_club_role_by_id(conn: sqlite3.Connection, role_id: int) -> ClubRole | None:
     """Get a club role by its ID."""
     cursor = conn.cursor()
     cursor.execute(
@@ -332,9 +390,7 @@ def get_club_role_by_id(
     return _row_to_club_role(row)
 
 
-def get_club_role_by_name(
-    conn: sqlite3.Connection, name: str
-) -> Optional[ClubRole]:
+def get_club_role_by_name(conn: sqlite3.Connection, name: str) -> ClubRole | None:
     """Get a club role by its name."""
     cursor = conn.cursor()
     cursor.execute(
@@ -347,19 +403,15 @@ def get_club_role_by_name(
     return _row_to_club_role(row)
 
 
-def list_all_club_roles(conn: sqlite3.Connection) -> List[ClubRole]:
+def list_all_club_roles(conn: sqlite3.Connection) -> list[ClubRole]:
     """List all club roles."""
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT * FROM club_roles ORDER BY name ASC"
-    )
+    cursor.execute("SELECT * FROM club_roles ORDER BY name ASC")
     rows = cursor.fetchall()
     return [_row_to_club_role(row) for row in rows]
 
 
-def delete_club_role(
-    conn: sqlite3.Connection, role_id: int
-) -> bool:
+def delete_club_role(conn: sqlite3.Connection, role_id: int) -> bool:
     """
     Delete a club role by ID.
 
@@ -407,7 +459,9 @@ def assign_role_to_member(
         (user_id, role_id, assigned_at, assigned_by),
     )
     conn.commit()
-    return get_member_role(conn, user_id=user_id, role_id=role_id)
+    created = get_member_role(conn, user_id=user_id, role_id=role_id)
+    assert created is not None
+    return created
 
 
 def get_member_role(
@@ -415,7 +469,7 @@ def get_member_role(
     *,
     user_id: int,
     role_id: int,
-) -> Optional[MemberRole]:
+) -> MemberRole | None:
     """Get a specific member-role assignment."""
     cursor = conn.cursor()
     cursor.execute(
@@ -457,7 +511,7 @@ def remove_role_from_member(
 def get_roles_for_member(
     conn: sqlite3.Connection,
     user_id: int,
-) -> List[ClubRole]:
+) -> list[ClubRole]:
     """Get all club roles assigned to a specific member."""
     cursor = conn.cursor()
     cursor.execute(
@@ -476,7 +530,7 @@ def get_roles_for_member(
 def get_members_with_role(
     conn: sqlite3.Connection,
     role_id: int,
-) -> List[int]:
+) -> list[int]:
     """Get all user IDs that have a specific club role."""
     cursor = conn.cursor()
     cursor.execute(
@@ -508,7 +562,7 @@ def create_department(
     conn: sqlite3.Connection,
     *,
     name: str,
-    description: Optional[str],
+    description: str | None,
 ) -> Department:
     """Create a new department."""
     cursor = conn.cursor()
@@ -521,12 +575,13 @@ def create_department(
     )
     conn.commit()
     dept_id = cursor.lastrowid
-    return get_department_by_id(conn, dept_id)
+    assert dept_id is not None
+    created = get_department_by_id(conn, int(dept_id))
+    assert created is not None
+    return created
 
 
-def get_department_by_id(
-    conn: sqlite3.Connection, department_id: int
-) -> Optional[Department]:
+def get_department_by_id(conn: sqlite3.Connection, department_id: int) -> Department | None:
     """Get a department by its ID."""
     cursor = conn.cursor()
     cursor.execute(
@@ -539,9 +594,7 @@ def get_department_by_id(
     return _row_to_department(row)
 
 
-def get_department_by_name(
-    conn: sqlite3.Connection, name: str
-) -> Optional[Department]:
+def get_department_by_name(conn: sqlite3.Connection, name: str) -> Department | None:
     """Get a department by its name."""
     cursor = conn.cursor()
     cursor.execute(
@@ -554,22 +607,18 @@ def get_department_by_name(
     return _row_to_department(row)
 
 
-def list_all_departments(conn: sqlite3.Connection) -> List[Department]:
+def list_all_departments(conn: sqlite3.Connection) -> list[Department]:
     """List all departments."""
     cursor = conn.cursor()
-    cursor.execute(
-        "SELECT * FROM departments ORDER BY name ASC"
-    )
+    cursor.execute("SELECT * FROM departments ORDER BY name ASC")
     rows = cursor.fetchall()
     return [_row_to_department(row) for row in rows]
 
 
-def delete_department(
-    conn: sqlite3.Connection, department_id: int
-) -> bool:
+def delete_department(conn: sqlite3.Connection, department_id: int) -> bool:
     """
     Delete a department by ID.
-    
+
     Returns True if a department was deleted, False if it didn't exist.
     Note: This will cascade delete all department_roles entries due to foreign key.
     """
@@ -613,7 +662,7 @@ def remove_role_from_department(
 ) -> bool:
     """
     Remove a role from a department.
-    
+
     Returns True if an assignment was removed, False if it didn't exist.
     """
     cursor = conn.cursor()
@@ -631,7 +680,7 @@ def remove_role_from_department(
 def get_roles_for_department(
     conn: sqlite3.Connection,
     department_id: int,
-) -> List[ClubRole]:
+) -> list[ClubRole]:
     """Get all roles assigned to a specific department."""
     cursor = conn.cursor()
     cursor.execute(
@@ -650,7 +699,7 @@ def get_roles_for_department(
 def get_departments_for_role(
     conn: sqlite3.Connection,
     role_id: int,
-) -> List[Department]:
+) -> list[Department]:
     """Get all departments that contain a specific role."""
     cursor = conn.cursor()
     cursor.execute(
@@ -668,10 +717,10 @@ def get_departments_for_role(
 
 def get_roles_grouped_by_department(
     conn: sqlite3.Connection,
-) -> Dict[Department, List[ClubRole]]:
+) -> dict[Department, list[ClubRole]]:
     """
     Get all roles grouped by their departments.
-    
+
     Returns a dictionary mapping departments to their roles.
     Roles not assigned to any department are not included.
     """
@@ -687,15 +736,14 @@ def get_roles_grouped_by_department(
         """
     )
     rows = cursor.fetchall()
-    
+
     # Group by department_id first (using int as key, which is hashable)
-    dept_roles: Dict[int, List[ClubRole]] = {}
-    dept_info: Dict[int, Department] = {}
-    
+    dept_roles: dict[int, list[ClubRole]] = {}
+    dept_info: dict[int, Department] = {}
+
     for row in rows:
         dept_id = row["dept_id"]
-        role_id = row["role_id"]
-        
+
         # Store department info (only need to do this once per department)
         if dept_id not in dept_info:
             dept_info[dept_id] = Department(
@@ -703,29 +751,29 @@ def get_roles_grouped_by_department(
                 name=row["dept_name"],
                 description=row["dept_description"],
             )
-        
+
         # Add role to department's list
         if dept_id not in dept_roles:
             dept_roles[dept_id] = []
-        
+
         role = ClubRole(
             id=row["role_id"],
             name=row["role_name"],
             description=row["role_description"],
         )
         dept_roles[dept_id].append(role)
-    
+
     # Convert to final format: Dict[Department, List[ClubRole]]
-    result: Dict[Department, List[ClubRole]] = {}
+    result: dict[Department, list[ClubRole]] = {}
     for dept_id, roles in dept_roles.items():
         result[dept_info[dept_id]] = roles
-    
+
     return result
 
 
 def get_roles_without_department(
     conn: sqlite3.Connection,
-) -> List[ClubRole]:
+) -> list[ClubRole]:
     """Get all roles that are not assigned to any department."""
     cursor = conn.cursor()
     cursor.execute(
@@ -738,5 +786,3 @@ def get_roles_without_department(
     )
     rows = cursor.fetchall()
     return [_row_to_club_role(row) for row in rows]
-
-

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -26,13 +24,17 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
     - /contribute: members submit contributions via a modal
     - /contributions list: HR view all contributions or by user
     - /contributions latest: HR list latest contributions
+    - /contributions pending: HR list pending contributions
     - /contributions approve: HR approve a contribution
     - /contributions reject: HR reject a contribution
+    - /contributions my: members list their own contributions
     """
 
     tree = bot.tree
 
-    @app_commands.command(name="contribute", description="Submit a private contribution to the HR team.")
+    @app_commands.command(
+        name="contribute", description="Submit a private contribution to the HR team."
+    )
     async def contribute(interaction: discord.Interaction) -> None:
         service = _get_contribution_service(interaction.client)  # type: ignore[arg-type]
         modal = ContributionModal(service=service, user=interaction.user)
@@ -52,7 +54,7 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
     @hr_only()
     async def contributions_list(
         interaction: discord.Interaction,
-        member: Optional[discord.Member] = None,
+        member: discord.Member | None = None,
         limit: app_commands.Range[int, 1, 50] = 10,
     ) -> None:
         service = _get_contribution_service(interaction.client)  # type: ignore[arg-type]
@@ -73,7 +75,13 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
 
         embed = discord.Embed(title=title, color=discord.Color.blurple())
         for contrib in contribs:
-            status = "✅ Approved" if contrib.approved else "⏳ Pending" if contrib.status == "pending" else "❌ Rejected"
+            status = (
+                "✅ Approved"
+                if contrib.approved
+                else "⏳ Pending"
+                if contrib.status == "pending"
+                else "❌ Rejected"
+            )
             user_line = f"<@{contrib.user_id}> (`{contrib.username}`)"
             ts = format_timestamp_for_display(contrib.timestamp)
             value = f"{status} • {ts}\nID: `{contrib.id}`\n{contrib.description}"
@@ -111,9 +119,51 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
             color=discord.Color.blurple(),
         )
         for contrib in contribs:
-            status = "✅ Approved" if contrib.approved else "⏳ Pending" if contrib.status == "pending" else "❌ Rejected"
+            status = (
+                "✅ Approved"
+                if contrib.approved
+                else "⏳ Pending"
+                if contrib.status == "pending"
+                else "❌ Rejected"
+            )
             ts = format_timestamp_for_display(contrib.timestamp)
             value = f"{status} • {ts}\nID: `{contrib.id}`\n{contrib.description}"
+            if contrib.links:
+                value += f"\nLinks: {contrib.links}"
+            embed.add_field(
+                name=f"<@{contrib.user_id}> (`{contrib.username}`)",
+                value=value[:1024],
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @contributions_group.command(
+        name="pending",
+        description="List pending contributions awaiting review.",
+    )
+    @hr_only()
+    async def contributions_pending(
+        interaction: discord.Interaction,
+        limit: app_commands.Range[int, 1, 50] = 10,
+    ) -> None:
+        service = _get_contribution_service(interaction.client)  # type: ignore[arg-type]
+        contribs = service.list_pending_contributions()[:limit]
+
+        if not contribs:
+            await interaction.response.send_message(
+                "There are no pending contributions right now.",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title=f"Pending contributions (latest {len(contribs)})",
+            color=discord.Color.blurple(),
+        )
+        for contrib in contribs:
+            ts = format_timestamp_for_display(contrib.timestamp)
+            value = f"⏳ Pending • {ts}\nID: `{contrib.id}`\n{contrib.description}"
             if contrib.links:
                 value += f"\nLinks: {contrib.links}"
             embed.add_field(
@@ -151,6 +201,15 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
             ephemeral=True,
         )
 
+        # Best-effort DM to the contributor
+        try:
+            user = await interaction.client.fetch_user(updated.user_id)
+            await user.send(
+                f"✅ Your contribution (ID `{contribution_id}`) was approved. Thank you!"
+            )
+        except Exception:
+            pass
+
     @contributions_group.command(
         name="reject",
         description="Reject a contribution by ID.",
@@ -178,6 +237,53 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
             ephemeral=True,
         )
 
+        # Best-effort DM to the contributor
+        try:
+            user = await interaction.client.fetch_user(updated.user_id)
+            await user.send(f"❌ Your contribution (ID `{contribution_id}`) was rejected.")
+        except Exception:
+            pass
+
+    @contributions_group.command(
+        name="my",
+        description="View your own contributions.",
+    )
+    async def contributions_my(
+        interaction: discord.Interaction,
+        limit: app_commands.Range[int, 1, 25] = 10,
+    ) -> None:
+        service = _get_contribution_service(interaction.client)  # type: ignore[arg-type]
+        contribs = service.list_user_contributions(user_id=interaction.user.id, limit=limit)
+
+        if not contribs:
+            await interaction.response.send_message(
+                "You have not submitted any contributions yet.",
+                ephemeral=True,
+            )
+            return
+
+        embed = discord.Embed(
+            title=f"Your contributions (latest {len(contribs)})",
+            color=discord.Color.blurple(),
+        )
+        for contrib in contribs:
+            status = (
+                "✅ Approved"
+                if contrib.approved
+                else "⏳ Pending"
+                if contrib.status == "pending"
+                else "❌ Rejected"
+            )
+            ts = format_timestamp_for_display(contrib.timestamp)
+            value = f"{status} • {ts}\nID: `{contrib.id}`\n{contrib.description}"
+            if contrib.links:
+                value += f"\nLinks: {contrib.links}"
+            embed.add_field(
+                name="Contribution",
+                value=value[:1024],
+                inline=False,
+            )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     tree.add_command(contributions_group)
-
-

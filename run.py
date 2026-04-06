@@ -8,8 +8,8 @@ SRC_DIR = os.path.join(CURRENT_DIR, "src")
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-from bot import create_bot  # noqa: E402
 import config  # noqa: E402
+from bot import create_bot  # noqa: E402
 
 
 def main() -> None:
@@ -29,5 +29,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

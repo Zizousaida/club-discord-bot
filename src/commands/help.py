@@ -7,7 +7,7 @@ from discord.ext import commands
 import config
 
 
-def _has_named_role(member: discord.Member, role_name: str) -> bool:
+def _has_named_role(member: discord.abc.Snowflake, role_name: str) -> bool:
     """Return True if the given member has a role with the provided name."""
     if not isinstance(member, discord.Member):
         return False
@@ -21,7 +21,9 @@ def _is_hr(member: discord.Member) -> bool:
 
 def _is_staff(member: discord.Member) -> bool:
     """Check if a member has the Staff or HR role."""
-    return _has_named_role(member, config.STAFF_ROLE_NAME) or _has_named_role(member, config.HR_ROLE_NAME)
+    return _has_named_role(member, config.STAFF_ROLE_NAME) or _has_named_role(
+        member, config.HR_ROLE_NAME
+    )
 
 
 def setup_help_command(bot: commands.Bot) -> None:
@@ -63,6 +65,9 @@ def setup_help_command(bot: commands.Bot) -> None:
         member_commands += "• Opens a form with description and optional links\n"
         member_commands += "• All members can use this command\n\n"
 
+        member_commands += "**`/contributions my [limit]`**\n"
+        member_commands += "View your own submitted contributions.\n\n"
+
         embed.add_field(
             name="📝 Member Commands",
             value=member_commands,
@@ -76,6 +81,9 @@ def setup_help_command(bot: commands.Bot) -> None:
 
             hr_commands += "**`/contributions latest [limit]`**\n"
             hr_commands += "View the latest contributions submitted.\n\n"
+
+            hr_commands += "**`/contributions pending [limit]`**\n"
+            hr_commands += "View contributions that are still awaiting review.\n\n"
 
             hr_commands += "**`/contributions approve <contribution_id>`**\n"
             hr_commands += "Approve a contribution by its ID.\n\n"
@@ -119,6 +127,9 @@ def setup_help_command(bot: commands.Bot) -> None:
             hr_commands += "**`/role department delete <name>`**\n"
             hr_commands += "Delete a department (removes all role assignments).\n\n"
 
+            hr_commands += "**`/export contributions [member] [limit]`**\n"
+            hr_commands += "Export contributions to CSV (optionally filtered by member).\n\n"
+
             embed.add_field(
                 name="👔 HR Commands",
                 value=hr_commands,
@@ -142,6 +153,16 @@ def setup_help_command(bot: commands.Bot) -> None:
             staff_commands += "**`/clear <amount>`**\n"
             staff_commands += "Bulk delete recent messages (1-100) from the current channel.\n\n"
 
+            staff_commands += "**`/modlogs [member] [limit]`**\n"
+            staff_commands += "View recent moderation log entries.\n\n"
+
+            staff_commands += "**`/export warnings <member>`**\n"
+            staff_commands += "Export a member's warnings to CSV.\n\n"
+
+            # Owner-only (shown to staff as a hint; permission enforced separately)
+            staff_commands += "**`/admin ping|stats|db-path`**\n"
+            staff_commands += "Owner-only diagnostics commands.\n\n"
+
             embed.add_field(
                 name="🛡️ Moderation Commands",
                 value=staff_commands,
@@ -157,9 +178,7 @@ def setup_help_command(bot: commands.Bot) -> None:
                 inline=False,
             )
 
-        embed.set_footer(
-            text="Use slash commands (/) to access these commands in Discord."
-        )
+        embed.set_footer(text="Use slash commands (/) to access these commands in Discord.")
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -168,7 +187,7 @@ def setup_help_command(bot: commands.Bot) -> None:
     except Exception as e:
         # Log error if command registration fails
         import logging
+
         log = logging.getLogger(__name__)
         log.error(f"Failed to register /help command: {e}")
         raise
-

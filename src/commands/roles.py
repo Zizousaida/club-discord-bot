@@ -1,47 +1,44 @@
 from __future__ import annotations
 
-from typing import List, Optional
-
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from services.role_service import RoleService
 from utils.permissions import hr_only
-from utils.time import format_timestamp_for_display
 
 
-def _split_field_value(value: str, max_length: int = 1024) -> List[str]:
+def _split_field_value(value: str, max_length: int = 1024) -> list[str]:
     """
     Split a field value into chunks that fit within Discord's embed field limit.
-    
+
     Discord embed field values have a maximum length of 1024 characters.
     This function splits long values into multiple chunks, trying to break
     at newline boundaries when possible.
     """
     if len(value) <= max_length:
         return [value]
-    
-    chunks = []
-    lines = value.split('\n')
-    current_chunk = []
+
+    chunks: list[str] = []
+    lines = value.split("\n")
+    current_chunk: list[str] = []
     current_length = 0
-    
+
     for line in lines:
         line_length = len(line) + 1  # +1 for the newline character
-        
+
         # If adding this line would exceed the limit
         if current_length + line_length > max_length:
             # If current chunk has content, save it
             if current_chunk:
-                chunks.append('\n'.join(current_chunk))
+                chunks.append("\n".join(current_chunk))
                 current_chunk = []
                 current_length = 0
-            
+
             # If a single line is too long, truncate it
             if len(line) > max_length:
                 # Try to truncate at word boundaries if possible
-                truncated = line[:max_length - 3] + "..."
+                truncated = line[: max_length - 3] + "..."
                 chunks.append(truncated)
             else:
                 current_chunk.append(line)
@@ -49,11 +46,11 @@ def _split_field_value(value: str, max_length: int = 1024) -> List[str]:
         else:
             current_chunk.append(line)
             current_length += line_length
-    
+
     # Add any remaining content
     if current_chunk:
-        chunks.append('\n'.join(current_chunk))
-    
+        chunks.append("\n".join(current_chunk))
+
     return chunks
 
 
@@ -63,6 +60,28 @@ def _get_role_service(bot: commands.Bot) -> RoleService:
     if not isinstance(service, RoleService):
         raise RuntimeError("RoleService is not attached to the bot.")
     return service
+
+
+async def _autocomplete_role_name(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    service = _get_role_service(interaction.client)  # type: ignore[arg-type]
+    roles = service.list_all_roles()
+    current_lower = (current or "").lower()
+    matches = [r.name for r in roles if current_lower in r.name.lower()]
+    return [app_commands.Choice(name=name, value=name) for name in matches[:25]]
+
+
+async def _autocomplete_department_name(
+    interaction: discord.Interaction,
+    current: str,
+) -> list[app_commands.Choice[str]]:
+    service = _get_role_service(interaction.client)  # type: ignore[arg-type]
+    depts = service.list_all_departments()
+    current_lower = (current or "").lower()
+    matches = [d.name for d in depts if current_lower in d.name.lower()]
+    return [app_commands.Choice(name=name, value=name) for name in matches[:25]]
 
 
 def setup_role_commands(bot: commands.Bot) -> None:
@@ -98,7 +117,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
     async def role_create(
         interaction: discord.Interaction,
         name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> None:
         service = _get_role_service(interaction.client)  # type: ignore[arg-type]
 
@@ -149,6 +168,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
             )
             return
 
+        assert role.id is not None
         deleted = service.delete_role(role.id)
         if deleted:
             await interaction.response.send_message(
@@ -184,6 +204,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
             return
+        assert club_role.id is not None
 
         # Check if already assigned
         if service.is_member_assigned(user_id=user.id, role_id=club_role.id):
@@ -211,6 +232,12 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
 
+    @role_assign.autocomplete("role")
+    async def role_assign_role_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        return await _autocomplete_role_name(interaction, current)
+
     @role_group.command(
         name="remove",
         description="Remove a club role from a member.",
@@ -234,6 +261,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
             return
+        assert club_role.id is not None
 
         # Check if assigned
         if not service.is_member_assigned(user_id=user.id, role_id=club_role.id):
@@ -260,6 +288,12 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
 
+    @role_remove.autocomplete("role")
+    async def role_remove_role_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        return await _autocomplete_role_name(interaction, current)
+
     @role_group.command(
         name="list",
         description="List all club organizational roles grouped by department.",
@@ -269,7 +303,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
         interaction: discord.Interaction,
     ) -> None:
         service = _get_role_service(interaction.client)  # type: ignore[arg-type]
-        
+
         # Get roles grouped by department
         roles_by_dept = service.get_roles_grouped_by_department()
         roles_without_dept = service.get_roles_without_department()
@@ -291,6 +325,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
         for department, roles in roles_by_dept.items():
             role_list = []
             for role in roles:
+                assert role.id is not None
                 members = service.get_role_members(role.id)
                 member_count = len(members)
                 role_info = f"• **{role.name}** (ID: `{role.id}`) • {member_count} member(s)"
@@ -301,15 +336,15 @@ def setup_role_commands(bot: commands.Bot) -> None:
                         desc = desc[:197] + "..."
                     role_info += f"\n  └ {desc}"
                 role_list.append(role_info)
-            
+
             dept_name = f"🏢 {department.name}"
             if department.description:
                 dept_name += f" - {department.description}"
-            
+
             field_value = "\n".join(role_list) if role_list else "No roles"
             # Split into multiple fields if value is too long
             value_chunks = _split_field_value(field_value)
-            
+
             for i, chunk in enumerate(value_chunks):
                 field_name = dept_name if i == 0 else f"{dept_name} (cont.)"
                 embed.add_field(
@@ -322,6 +357,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
         if roles_without_dept:
             role_list = []
             for role in roles_without_dept:
+                assert role.id is not None
                 members = service.get_role_members(role.id)
                 member_count = len(members)
                 role_info = f"• **{role.name}** (ID: `{role.id}`) • {member_count} member(s)"
@@ -332,11 +368,11 @@ def setup_role_commands(bot: commands.Bot) -> None:
                         desc = desc[:197] + "..."
                     role_info += f"\n  └ {desc}"
                 role_list.append(role_info)
-            
+
             field_value = "\n".join(role_list)
             # Split into multiple fields if value is too long
             value_chunks = _split_field_value(field_value)
-            
+
             for i, chunk in enumerate(value_chunks):
                 field_name = "📋 Unassigned Roles" if i == 0 else "📋 Unassigned Roles (cont.)"
                 embed.add_field(
@@ -368,6 +404,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
             return
+        assert club_role.id is not None
 
         member_ids = service.get_role_members(club_role.id)
 
@@ -387,16 +424,16 @@ def setup_role_commands(bot: commands.Bot) -> None:
         # Format member mentions (Discord will resolve them)
         member_mentions = [f"<@{user_id}>" for user_id in member_ids]
         field_value = "\n".join(member_mentions) if member_mentions else "None"
-        
+
         # Split into multiple fields if value is too long (1024 char limit)
         value_chunks = _split_field_value(field_value)
-        
+
         for i, chunk in enumerate(value_chunks):
             if len(value_chunks) == 1:
                 field_name = "Members"
             else:
                 field_name = f"Members (part {i + 1})"
-            
+
             embed.add_field(
                 name=field_name,
                 value=chunk,
@@ -404,6 +441,12 @@ def setup_role_commands(bot: commands.Bot) -> None:
             )
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @role_members.autocomplete("role")
+    async def role_members_role_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        return await _autocomplete_role_name(interaction, current)
 
     @role_group.command(
         name="user",
@@ -440,7 +483,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 desc = role.description
                 max_desc_length = 1024 - len(value) - 1  # -1 for newline
                 if len(desc) > max_desc_length:
-                    desc = desc[:max_desc_length - 3] + "..."
+                    desc = desc[: max_desc_length - 3] + "..."
                 value += f"\n{desc}"
             # Ensure the entire value doesn't exceed 1024 characters
             if len(value) > 1024:
@@ -472,7 +515,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
     async def department_create(
         interaction: discord.Interaction,
         name: str,
-        description: Optional[str] = None,
+        description: str | None = None,
     ) -> None:
         service = _get_role_service(interaction.client)  # type: ignore[arg-type]
 
@@ -524,6 +567,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
             return
+        assert dept.id is not None
 
         # Parse role IDs
         try:
@@ -596,6 +640,12 @@ def setup_role_commands(bot: commands.Bot) -> None:
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @department_assign.autocomplete("department")
+    async def department_assign_dept_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        return await _autocomplete_department_name(interaction, current)
+
     @department_group.command(
         name="remove",
         description="Remove roles from a department by their IDs.",
@@ -619,6 +669,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
             return
+        assert dept.id is not None
 
         # Parse role IDs
         try:
@@ -685,6 +736,12 @@ def setup_role_commands(bot: commands.Bot) -> None:
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+    @department_remove.autocomplete("department")
+    async def department_remove_dept_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        return await _autocomplete_department_name(interaction, current)
+
     @department_group.command(
         name="list",
         description="List all departments and their roles.",
@@ -709,11 +766,12 @@ def setup_role_commands(bot: commands.Bot) -> None:
         )
 
         for dept in departments:
+            assert dept.id is not None
             roles = service.get_roles_for_department(dept.id)
             dept_name = f"🏢 {dept.name}"
             if dept.description:
                 dept_name += f" - {dept.description}"
-            
+
             if roles:
                 role_list = [f"• {role.name} (ID: `{role.id}`)" for role in roles]
                 value = f"**{len(roles)} role(s):**\n" + "\n".join(role_list)
@@ -722,7 +780,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
 
             # Split into multiple fields if value is too long
             value_chunks = _split_field_value(value)
-            
+
             for i, chunk in enumerate(value_chunks):
                 field_name = dept_name if i == 0 else f"{dept_name} (cont.)"
                 embed.add_field(
@@ -755,6 +813,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
             )
             return
 
+        assert dept.id is not None
         deleted = service.delete_department(dept.id)
         if deleted:
             await interaction.response.send_message(
@@ -767,5 +826,10 @@ def setup_role_commands(bot: commands.Bot) -> None:
                 ephemeral=True,
             )
 
-    tree.add_command(role_group)
+    @department_delete.autocomplete("name")
+    async def department_delete_dept_autocomplete(
+        interaction: discord.Interaction, current: str
+    ) -> list[app_commands.Choice[str]]:
+        return await _autocomplete_department_name(interaction, current)
 
+    tree.add_command(role_group)

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
-from database import db
-from database import queries
+from database import db, queries
 from database.models import ClubRole, Department, MemberRole
 from utils.time import utcnow_iso
 
@@ -20,7 +17,7 @@ class RoleService:
         self,
         *,
         name: str,
-        description: Optional[str],
+        description: str | None,
     ) -> ClubRole:
         """Create a new club role."""
         conn = db.get_connection()
@@ -33,7 +30,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_role_by_name(self, name: str) -> Optional[ClubRole]:
+    def get_role_by_name(self, name: str) -> ClubRole | None:
         """Get a club role by its name."""
         conn = db.get_connection()
         try:
@@ -41,7 +38,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_role_by_id(self, role_id: int) -> Optional[ClubRole]:
+    def get_role_by_id(self, role_id: int) -> ClubRole | None:
         """Get a club role by its ID."""
         conn = db.get_connection()
         try:
@@ -49,7 +46,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def list_all_roles(self) -> List[ClubRole]:
+    def list_all_roles(self) -> list[ClubRole]:
         """List all club roles."""
         conn = db.get_connection()
         try:
@@ -111,7 +108,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_member_roles(self, user_id: int) -> List[ClubRole]:
+    def get_member_roles(self, user_id: int) -> list[ClubRole]:
         """Get all club roles assigned to a specific member."""
         conn = db.get_connection()
         try:
@@ -119,7 +116,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_role_members(self, role_id: int) -> List[int]:
+    def get_role_members(self, role_id: int) -> list[int]:
         """Get all user IDs that have a specific club role."""
         conn = db.get_connection()
         try:
@@ -151,7 +148,7 @@ class RoleService:
         self,
         *,
         name: str,
-        description: Optional[str],
+        description: str | None,
     ) -> Department:
         """Create a new department."""
         conn = db.get_connection()
@@ -164,7 +161,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_department_by_name(self, name: str) -> Optional[Department]:
+    def get_department_by_name(self, name: str) -> Department | None:
         """Get a department by its name."""
         conn = db.get_connection()
         try:
@@ -172,7 +169,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_department_by_id(self, department_id: int) -> Optional[Department]:
+    def get_department_by_id(self, department_id: int) -> Department | None:
         """Get a department by its ID."""
         conn = db.get_connection()
         try:
@@ -180,7 +177,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def list_all_departments(self) -> List[Department]:
+    def list_all_departments(self) -> list[Department]:
         """List all departments."""
         conn = db.get_connection()
         try:
@@ -191,7 +188,7 @@ class RoleService:
     def delete_department(self, department_id: int) -> bool:
         """
         Delete a department by ID.
-        
+
         Returns True if the department was deleted, False if it didn't exist.
         This will also remove all role assignments to this department.
         """
@@ -226,7 +223,7 @@ class RoleService:
     ) -> bool:
         """
         Remove a role from a department.
-        
+
         Returns True if the assignment was removed, False if it didn't exist.
         """
         conn = db.get_connection()
@@ -239,7 +236,7 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_roles_for_department(self, department_id: int) -> List[ClubRole]:
+    def get_roles_for_department(self, department_id: int) -> list[ClubRole]:
         """Get all roles assigned to a specific department."""
         conn = db.get_connection()
         try:
@@ -249,7 +246,7 @@ class RoleService:
 
     def get_roles_grouped_by_department(
         self,
-    ) -> Dict[Department, List[ClubRole]]:
+    ) -> dict[Department, list[ClubRole]]:
         """Get all roles grouped by their departments."""
         conn = db.get_connection()
         try:
@@ -257,11 +254,10 @@ class RoleService:
         finally:
             conn.close()
 
-    def get_roles_without_department(self) -> List[ClubRole]:
+    def get_roles_without_department(self) -> list[ClubRole]:
         """Get all roles that are not assigned to any department."""
         conn = db.get_connection()
         try:
             return queries.get_roles_without_department(conn)
         finally:
             conn.close()
-

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable, Coroutine, Any
+from collections.abc import Callable, Coroutine
+from typing import Any
 
 import discord
 from discord import app_commands
@@ -15,7 +16,9 @@ def _has_named_role(member: discord.abc.Snowflake, role_name: str) -> bool:
     return any(role.name == role_name for role in member.roles)
 
 
-def hr_only() -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], Callable[..., Coroutine[Any, Any, Any]]]:
+def hr_only() -> Callable[
+    [Callable[..., Coroutine[Any, Any, Any]]], Callable[..., Coroutine[Any, Any, Any]]
+]:
     """
     App command check ensuring the invoker has the HR role.
 
@@ -34,7 +37,9 @@ def hr_only() -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], Callable[..
     return app_commands.check(predicate)
 
 
-def staff_only() -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], Callable[..., Coroutine[Any, Any, Any]]]:
+def staff_only() -> Callable[
+    [Callable[..., Coroutine[Any, Any, Any]]], Callable[..., Coroutine[Any, Any, Any]]
+]:
     """
     App command check ensuring the invoker has the Staff role.
 
@@ -54,5 +59,3 @@ def staff_only() -> Callable[[Callable[..., Coroutine[Any, Any, Any]]], Callable
         return True
 
     return app_commands.check(predicate)
-
-

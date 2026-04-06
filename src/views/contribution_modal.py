@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional
+import logging
 
 import discord
 
 from services.contribution_service import ContributionService
+
+log = logging.getLogger(__name__)
 
 
 class ContributionModal(discord.ui.Modal, title="Submit Contribution"):
@@ -17,7 +19,7 @@ class ContributionModal(discord.ui.Modal, title="Submit Contribution"):
     description: discord.ui.TextInput
     links: discord.ui.TextInput
 
-    def __init__(self, service: ContributionService, user: discord.User) -> None:
+    def __init__(self, service: ContributionService, user: discord.abc.User) -> None:
         super().__init__(timeout=300)
 
         self.service = service
@@ -46,7 +48,7 @@ class ContributionModal(discord.ui.Modal, title="Submit Contribution"):
         When the user submits the modal, create a contribution entry
         and acknowledge privately.
         """
-        links_value: Optional[str] = str(self.links.value).strip() or None
+        links_value: str | None = str(self.links.value).strip() or None
 
         # Store contribution through the service layer
         self.service.submit_contribution(
@@ -61,11 +63,13 @@ class ContributionModal(discord.ui.Modal, title="Submit Contribution"):
             ephemeral=True,
         )
 
-    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:
-        # Basic user-friendly error handling; errors should also be logged by the bot.
+    async def on_error(self, interaction: discord.Interaction, error: Exception) -> None:  # type: ignore[override]
+        log.exception(
+            "Contribution modal failed for user_id=%s",
+            getattr(self.user, "id", "unknown"),
+            exc_info=error,
+        )
         await interaction.response.send_message(
             "⚠️ Something went wrong while saving your contribution. Please try again later.",
             ephemeral=True,
         )
-
-
