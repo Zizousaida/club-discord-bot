@@ -4,6 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import config
 from services.role_service import RoleService
 from utils.permissions import hr_only
 
@@ -126,7 +127,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
         if existing:
             await interaction.response.send_message(
                 f"❌ A role named `{name}` already exists.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -139,11 +140,13 @@ def setup_role_commands(bot: commands.Bot) -> None:
             )
             if role.description:
                 embed.add_field(name="Description", value=role.description, inline=False)
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(
+                embed=embed, ephemeral=not config.COMMAND_RESPONSES_PUBLIC
+            )
         except Exception as e:
             await interaction.response.send_message(
                 f"❌ Failed to create role: {str(e)}",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
 
     @role_group.command(
@@ -164,7 +167,7 @@ def setup_role_commands(bot: commands.Bot) -> None:
         if not role:
             await interaction.response.send_message(
                 f"❌ Role `{name}` not found.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -173,12 +176,12 @@ def setup_role_commands(bot: commands.Bot) -> None:
         if deleted:
             await interaction.response.send_message(
                 f"✅ Role `{name}` has been deleted. All member assignments have been removed.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
         else:
             await interaction.response.send_message(
                 f"❌ Failed to delete role `{name}`.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
 
     @role_group.command(

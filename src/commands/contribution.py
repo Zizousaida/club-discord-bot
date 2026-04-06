@@ -4,6 +4,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import config
 from services.contribution_service import ContributionService
 from utils.permissions import hr_only
 from utils.time import format_timestamp_for_display
@@ -69,7 +70,7 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
         if not contribs:
             await interaction.response.send_message(
                 "No contributions found for the given criteria.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -93,7 +94,9 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
                 inline=False,
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embed, ephemeral=not config.COMMAND_RESPONSES_PUBLIC
+        )
 
     @contributions_group.command(
         name="latest",
@@ -110,7 +113,7 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
         if not contribs:
             await interaction.response.send_message(
                 "There are no contributions yet.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -136,7 +139,9 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
                 inline=False,
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embed, ephemeral=not config.COMMAND_RESPONSES_PUBLIC
+        )
 
     @contributions_group.command(
         name="pending",
@@ -153,7 +158,7 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
         if not contribs:
             await interaction.response.send_message(
                 "There are no pending contributions right now.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -172,7 +177,9 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
                 inline=False,
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embed, ephemeral=not config.COMMAND_RESPONSES_PUBLIC
+        )
 
     @contributions_group.command(
         name="approve",
@@ -192,13 +199,13 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
         if not updated:
             await interaction.response.send_message(
                 f"No contribution with ID `{contribution_id}` was found.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
         await interaction.response.send_message(
             f"✅ Contribution `{contribution_id}` from <@{updated.user_id}> has been approved.",
-            ephemeral=True,
+            ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
         )
 
         # Best-effort DM to the contributor
@@ -228,13 +235,13 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
         if not updated:
             await interaction.response.send_message(
                 f"No contribution with ID `{contribution_id}` was found.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
         await interaction.response.send_message(
             f"❌ Contribution `{contribution_id}` from <@{updated.user_id}> has been rejected.",
-            ephemeral=True,
+            ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
         )
 
         # Best-effort DM to the contributor
@@ -258,7 +265,7 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
         if not contribs:
             await interaction.response.send_message(
                 "You have not submitted any contributions yet.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -284,6 +291,8 @@ def setup_contribution_commands(bot: commands.Bot) -> None:
                 inline=False,
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embed, ephemeral=not config.COMMAND_RESPONSES_PUBLIC
+        )
 
     tree.add_command(contributions_group)

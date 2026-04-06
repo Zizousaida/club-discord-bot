@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import discord
 from discord.ext import commands
@@ -17,6 +18,42 @@ from services.contribution_service import ContributionService
 from services.role_service import RoleService
 
 log = logging.getLogger(__name__)
+
+
+def _configure_response_visibility() -> None:
+    """
+    Force command responses to be public when configured.
+
+    This centralizes visibility behavior so command modules do not need
+    to manage `ephemeral` flags individually.
+    """
+    if not config.COMMAND_RESPONSES_PUBLIC:
+        return
+
+    response_cls: Any = discord.InteractionResponse
+    if getattr(response_cls, "_club_visibility_patched", False):
+        return
+
+    original_send_message = discord.InteractionResponse.send_message
+    original_defer = discord.InteractionResponse.defer
+    original_webhook_send = discord.Webhook.send
+
+    async def send_message_public(self, *args, **kwargs):
+        kwargs["ephemeral"] = False
+        return await original_send_message(self, *args, **kwargs)
+
+    async def defer_public(self, *args, **kwargs):
+        kwargs["ephemeral"] = False
+        return await original_defer(self, *args, **kwargs)
+
+    async def webhook_send_public(self, *args, **kwargs):
+        kwargs["ephemeral"] = False
+        return await original_webhook_send(self, *args, **kwargs)
+
+    discord.InteractionResponse.send_message = send_message_public  # type: ignore[method-assign]
+    discord.InteractionResponse.defer = defer_public  # type: ignore[method-assign]
+    discord.Webhook.send = webhook_send_public  # type: ignore[method-assign]
+    response_cls._club_visibility_patched = True
 
 
 class ClubBot(commands.Bot):
@@ -52,6 +89,7 @@ class ClubBot(commands.Bot):
         """
         # Initialize the database schema
         init_db()
+        _configure_response_visibility()
 
         # Register slash commands
         setup_contribution_commands(self)

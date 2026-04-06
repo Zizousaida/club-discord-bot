@@ -17,6 +17,13 @@ def _get_int(name: str, default: int = 0) -> int:
         return default
 
 
+def _get_bool(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # Discord bot token
 DISCORD_TOKEN: str = os.getenv("DISCORD_TOKEN", "")
 
@@ -32,6 +39,9 @@ LOG_CHANNEL_ID: int = _get_int("LOG_CHANNEL_ID", 0)
 
 # Path to the SQLite database file
 DATABASE_PATH: str = os.getenv("DATABASE_PATH", "club_bot.db")
+
+# If true, command responses are visible to everyone by default.
+COMMAND_RESPONSES_PUBLIC: bool = _get_bool("COMMAND_RESPONSES_PUBLIC", True)
 
 
 def get_guild_id() -> int | None:

@@ -43,6 +43,7 @@ All configuration is done via environment variables (loaded from `.env`).
 - `GUILD_ID` (optional): when set, slash commands sync to that guild only (faster for development)
 - `LOG_CHANNEL_ID` (optional): a channel ID where moderation actions are logged
 - `DATABASE_PATH` (default `club_bot.db`): path to the SQLite database file
+- `COMMAND_RESPONSES_PUBLIC` (default `true`): if true, command replies are public; if false, replies are private (ephemeral)
 
 ## Commands
 

@@ -65,7 +65,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         if member == interaction.user:
             await interaction.response.send_message(
                 "You cannot mute yourself.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -76,13 +76,13 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         except discord.Forbidden:
             await interaction.response.send_message(
                 "I do not have permission to mute that member.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
         await interaction.response.send_message(
             f"🔇 {member.mention} has been muted for {duration_minutes} minutes.",
-            ephemeral=True,
+            ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
         )
 
         # Record moderation log and DB entry
@@ -133,13 +133,13 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         except discord.Forbidden:
             await interaction.response.send_message(
                 "I do not have permission to unmute that member.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
         await interaction.response.send_message(
             f"🔊 {member.mention} has been unmuted.",
-            ephemeral=True,
+            ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
         )
 
         conn = db.get_connection()
@@ -186,7 +186,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         if member == interaction.user:
             await interaction.response.send_message(
                 "You cannot warn yourself.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -215,7 +215,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
 
         await interaction.response.send_message(
             f"⚠️ {member.mention} has been warned. Reason: {reason}",
-            ephemeral=True,
+            ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
         )
 
         if interaction.guild:
@@ -254,7 +254,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         if not warns:
             await interaction.response.send_message(
                 f"{member.mention} has no recorded warnings.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -269,7 +269,9 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
                 inline=False,
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embed, ephemeral=not config.COMMAND_RESPONSES_PUBLIC
+        )
 
     tree.add_command(warnings)
 
@@ -288,18 +290,18 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         if not isinstance(interaction.channel, (discord.TextChannel, discord.Thread)):
             await interaction.response.send_message(
                 "This command can only be used in text channels.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
         # Defer since deleting messages can take a moment
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=not config.COMMAND_RESPONSES_PUBLIC)
 
         deleted = await interaction.channel.purge(limit=amount + 1)  # include the command message
 
         await interaction.followup.send(
             f"🧹 Deleted {len(deleted) - 1} messages.",
-            ephemeral=True,
+            ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
         )
 
         conn = db.get_connection()
@@ -344,7 +346,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         if not interaction.guild_id:
             await interaction.response.send_message(
                 "This command can only be used in a server.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -362,7 +364,7 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
         if not logs:
             await interaction.response.send_message(
                 "No moderation logs found for that filter.",
-                ephemeral=True,
+                ephemeral=not config.COMMAND_RESPONSES_PUBLIC,
             )
             return
 
@@ -385,6 +387,8 @@ def setup_moderation_commands(bot: commands.Bot) -> None:
                 inline=False,
             )
 
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(
+            embed=embed, ephemeral=not config.COMMAND_RESPONSES_PUBLIC
+        )
 
     tree.add_command(modlogs)
