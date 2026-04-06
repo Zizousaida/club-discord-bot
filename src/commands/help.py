@@ -7,6 +7,45 @@ from discord.ext import commands
 import config
 
 
+def _split_field_value(value: str, max_length: int = 1024) -> list[str]:
+    """Split long embed field text into Discord-safe chunks."""
+    if len(value) <= max_length:
+        return [value]
+
+    chunks: list[str] = []
+    lines = value.split("\n")
+    current: list[str] = []
+    current_len = 0
+
+    for line in lines:
+        line_len = len(line) + 1
+        if current_len + line_len > max_length:
+            if current:
+                chunks.append("\n".join(current))
+                current = []
+                current_len = 0
+            if len(line) > max_length:
+                chunks.append(f"{line[: max_length - 3]}...")
+            else:
+                current.append(line)
+                current_len = line_len
+        else:
+            current.append(line)
+            current_len += line_len
+
+    if current:
+        chunks.append("\n".join(current))
+    return chunks
+
+
+def _add_wrapped_field(embed: discord.Embed, name: str, value: str) -> None:
+    """Add one or more fields so each field value stays <= 1024 chars."""
+    chunks = _split_field_value(value)
+    for i, chunk in enumerate(chunks):
+        chunk_name = name if i == 0 else f"{name} (cont.)"
+        embed.add_field(name=chunk_name, value=chunk, inline=False)
+
+
 def _has_named_role(member: discord.abc.Snowflake, role_name: str) -> bool:
     """Return True if the given member has a role with the provided name."""
     if not isinstance(member, discord.Member):
@@ -68,11 +107,7 @@ def setup_help_command(bot: commands.Bot) -> None:
         member_commands += "**`/contributions my [limit]`**\n"
         member_commands += "View your own submitted contributions.\n\n"
 
-        embed.add_field(
-            name="📝 Member Commands",
-            value=member_commands,
-            inline=False,
-        )
+        _add_wrapped_field(embed, "📝 Member Commands", member_commands)
 
         # HR Commands
         if is_hr:
@@ -130,11 +165,7 @@ def setup_help_command(bot: commands.Bot) -> None:
             hr_commands += "**`/export contributions [member] [limit]`**\n"
             hr_commands += "Export contributions to CSV (optionally filtered by member).\n\n"
 
-            embed.add_field(
-                name="👔 HR Commands",
-                value=hr_commands,
-                inline=False,
-            )
+            _add_wrapped_field(embed, "👔 HR Commands", hr_commands)
 
         # Staff Commands (Staff and HR)
         if is_staff:
@@ -163,11 +194,7 @@ def setup_help_command(bot: commands.Bot) -> None:
             staff_commands += "**`/admin ping|stats|db-path`**\n"
             staff_commands += "Owner-only diagnostics commands.\n\n"
 
-            embed.add_field(
-                name="🛡️ Moderation Commands",
-                value=staff_commands,
-                inline=False,
-            )
+            _add_wrapped_field(embed, "🛡️ Moderation Commands", staff_commands)
 
         # Permission Notice
         if not is_hr and not is_staff:
